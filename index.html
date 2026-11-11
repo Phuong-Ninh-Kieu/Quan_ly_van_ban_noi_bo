@@ -1,0 +1,1329 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quản lý văn bản</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--blue:#2563eb;--blue2:#3b82f6;--green:#10b981;--red:#ef4444;--text:#1f2937;--muted:#6b7280;--border:#e5e7eb;--bg:#f3f6fa}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:"Inter","Segoe UI",Roboto,Arial,sans-serif;font-size:14px;color:var(--text);background:var(--bg)}
+button,input,select,textarea{font-family:inherit}
+.hidden{display:none!important}
+/* header */
+header.top{background:#fff;display:flex;justify-content:space-between;align-items:center;padding:8px 16px;gap:10px;flex-wrap:wrap}
+.brand{display:flex;gap:12px;align-items:center}
+.logo{width:30px;height:30px;border-radius:6px;background:var(--blue);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none}
+.brand b{display:block;font-size:14px;letter-spacing:.2px}
+.brand small{color:var(--muted);font-size:12px}
+.hbtns{display:flex;gap:6px;flex-wrap:wrap}
+.btn{border:1px solid var(--border);background:#f8fafc;color:var(--text);border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap;line-height:1.3}
+.btn:hover{filter:brightness(.96)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn-yellow{background:#fefce8;border-color:#fcd34d;color:#a16207}
+.btn-exit{color:#dc2626}
+.btn-blue{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn-green{background:#10b981;border-color:#10b981;color:#fff;font-weight:600}
+.btn-red{background:#ef4444;border-color:#ef4444;color:#fff;font-weight:600}
+.btn-reset{background:#fff1f2;border-color:#fecdd3;color:#e11d48;width:100%;justify-content:center;padding:7px}
+.btn-sm{padding:4px 10px;font-size:12.5px}
+/* tabs */
+nav.tabs{background:#fff;display:flex;gap:2px;padding:0 12px;border-top:1px solid #f1f5f9;border-bottom:1px solid var(--border);box-shadow:0 2px 3px rgba(0,0,0,.03);overflow-x:auto}
+nav.tabs button{background:none;border:0;padding:10px 12px;font-size:13.5px;color:#374151;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+nav.tabs button.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+main{padding:14px 12px 30px;max-width:1440px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:12px}
+.card h3{margin:0 0 12px;font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:#374151}
+/* dashboard */
+.storage .row1{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.storage .note{font-style:italic;color:var(--muted);font-size:12px}
+.bar{height:8px;background:#e5e7eb;border-radius:99px;margin-top:10px;overflow:hidden}
+.bar>div{height:100%;background:var(--green);border-radius:99px;min-width:14px;transition:width .4s}
+code.mono{font-family:Consolas,"Courier New",monospace;color:#1d4ed8;font-weight:600;font-size:13px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.stat{background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;justify-content:space-between;align-items:center}
+.stat .lbl{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.6px;text-transform:uppercase}
+.stat .num{font-size:20px;font-weight:700;margin-top:4px}
+.stat .ico{font-size:20px}
+.charts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.chart-box{position:relative;height:215px}
+/* list */
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.search{flex:1;min-width:240px;position:relative}
+.search input{width:100%;padding:7px 10px 7px 32px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px}
+.search:before{content:"🔍";position:absolute;left:10px;top:6px;font-size:12px}
+.filters{display:grid;grid-template-columns:repeat(6,1fr) 1fr;gap:10px;margin-top:12px;align-items:end}
+.filters label{display:block;font-size:11px;font-weight:600;color:#4b5563;text-transform:uppercase;margin-bottom:4px}
+.filters select,.filters input{width:100%;padding:6px 8px;border:1px solid #9ca3af;border-radius:5px;font-size:13px;background:#fff;height:32px}
+.infobox{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px;margin-bottom:12px}
+.infobox .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.infobox input{padding:5px 8px;border:1px solid #93c5fd;border-radius:5px;font-family:Consolas,monospace;width:180px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chip{background:#fff;border:1px solid #cbd5e1;border-radius:5px;padding:4px 10px;font-size:13px;cursor:pointer}
+.chip b{color:#1d4ed8}
+.chip.on{border-color:var(--blue);background:#dbeafe}
+.struct{font-size:12px;color:#1e3a8a}
+.infobox .r .struct{margin-left:6px;padding-left:12px;border-left:1px solid #bfdbfe}
+.infobox .chips{margin-bottom:0}
+.struct code{font-family:Consolas,monospace;color:#1d4ed8}
+.small-note{font-size:12px;color:#475569;font-style:italic;margin-top:4px}
+.total{color:var(--muted);margin:4px 2px 8px}
+.tablewrap{background:#fff;border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:calc(100vh - 300px);min-height:260px}
+table.grid{width:100%;border-collapse:collapse;font-size:13.5px}
+table.grid th{position:sticky;top:0;background:#f9fafb;font-size:12px;text-transform:uppercase;color:#374151;text-align:left;padding:12px 8px;border-bottom:1px solid var(--border);font-weight:700;letter-spacing:.3px;z-index:1}
+table.grid td{padding:11px 8px;border-bottom:1px solid #f0f2f5;vertical-align:middle}
+table.grid tr:hover td{background:#fafcff}
+.sovb{font-weight:700;min-width:90px}
+.pill{font-family:Consolas,monospace;font-size:11.5px;background:#eef4ff;border:1px solid #dbe5ff;color:#1e3a8a;border-radius:4px;padding:2px 6px;white-space:nowrap}
+.loai{font-weight:700;margin-bottom:3px}
+.ty{color:#6b7280;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:330px}
+.fl{display:block;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1d4ed8;cursor:pointer;font-size:12.5px;text-decoration:none}
+.fl.off{color:#9ca3af;cursor:default}
+.act{white-space:nowrap}
+.act a{margin-right:10px;cursor:pointer;text-decoration:none}
+.act .e{color:#2563eb}.act .d{color:#dc2626}
+.badge{display:inline-block;border:1px solid #fca5a5;background:#fff1f2;color:#dc2626;font-weight:700;font-size:11px;padding:2px 8px;border-radius:4px;white-space:nowrap}
+.soden{color:#1d4ed8;font-weight:700}
+.muted{color:#9ca3af}
+.pager{display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:8px;color:var(--muted)}
+.empty{padding:40px;text-align:center;color:var(--muted)}
+/* settings */
+.set-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:12px;font-weight:600;color:#4b5563;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:7px 9px;border:1px solid #cbd5e1;border-radius:6px;font-size:13.5px;background:#fff}
+.field textarea{min-height:70px;resize:vertical}
+.field input[readonly]{background:#f8fafc;color:#334155}
+/* settings – sub tabs */
+.set-wrap{display:grid;grid-template-columns:270px minmax(0,1fr);gap:16px;align-items:start}
+.set-nav{background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px;position:sticky;top:12px}
+.set-nav .nh{font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:.7px;padding:8px 10px 6px}
+.set-nav button{display:flex;gap:11px;align-items:center;width:100%;text-align:left;border:0;background:none;padding:9px 10px;border-radius:8px;cursor:pointer;color:#334155;font-size:13.5px;line-height:1.3;position:relative}
+.set-nav button:hover{background:#f8fafc}
+.set-nav button .ic{width:32px;height:32px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;flex:none;font-size:15px}
+.set-nav button small{display:block;color:var(--muted);font-size:11.5px;font-weight:400;margin-top:2px}
+.set-nav button.on{background:#eff6ff;color:#1d4ed8;font-weight:600}
+.set-nav button.on:before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--blue)}
+.set-nav button.on .ic{background:#dbeafe}
+.set-nav .dot{width:8px;height:8px;border-radius:50%;margin-left:auto;flex:none;background:#f59e0b}
+.set-nav .dot.ok{background:#10b981}
+.sx-panel{background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.sx-head{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.sx-head h2{margin:0;font-size:16px;color:#0f172a}
+.sx-head p{margin:4px 0 0;color:var(--muted);font-size:13px;max-width:680px}
+.sx-body{padding:18px 20px}
+.sx-foot{padding:12px 20px;border-top:1px solid var(--border);background:#f8fafc;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.sx-foot .left{margin-right:auto;display:flex;gap:8px;flex-wrap:wrap}
+.sx-sec{font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#64748b;margin:0 0 12px;padding-bottom:7px;border-bottom:1px solid #f1f5f9}
+.sx-sec + *{margin-top:0}
+.sx-gap{height:14px}
+.stag{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:4px 10px;border-radius:99px;font-weight:600;white-space:nowrap}
+.stag.on{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+.stag.off{background:#fff7ed;color:#c2410c;border:1px solid #fed7aa}
+.steps{margin:0;padding-left:18px;font-size:13px;color:#334155;line-height:1.7}
+.ma-prev{margin-top:6px;font-size:12px;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:7px 10px;overflow-x:auto;white-space:nowrap}
+.ma-prev code{font-family:Consolas,monospace;color:#1d4ed8;font-weight:600}
+.acc{display:flex;gap:14px;align-items:center;border:1px solid var(--border);border-radius:8px;padding:12px 14px;background:#fbfdff;flex-wrap:wrap}
+.acc .av{width:42px;height:42px;border-radius:50%;background:var(--blue);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:15px;flex:none}
+.acc .who{flex:1;min-width:180px}
+.acc .who b{display:block;font-size:14px}
+.acc .who span{color:var(--muted);font-size:12.5px}
+.dm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.dm-col{border:1px solid var(--border);border-radius:8px;padding:12px;background:#fbfdff;display:flex;flex-direction:column}
+.dm-col .dmh{display:flex;justify-content:space-between;align-items:center}
+.dm-col .cnt{font-size:11.5px;font-weight:600;color:#1d4ed8;background:#eff6ff;border:1px solid #dbeafe;border-radius:99px;padding:1px 8px}
+.dm-col .dmlist{min-height:34px}
+.lm-wrap{border:1px solid var(--border);border-radius:8px;overflow:auto;max-height:calc(100vh - 320px)}
+.lm-wrap table.mini th{position:sticky;top:0;background:#f8fafc;padding:10px 8px;border-bottom:1px solid var(--border);z-index:1}
+.lm-wrap table.mini td{padding:5px 8px;border-bottom:1px solid #f1f5f9}
+.lm-wrap table.mini td.no{color:var(--muted);font-size:12px;text-align:center;width:36px}
+.lm-wrap table.mini input:focus,.sx-body input:focus,.sx-body select:focus{outline:none;border-color:var(--blue2);box-shadow:0 0 0 3px rgba(59,130,246,.15)}
+@media (max-width:900px){.set-wrap{grid-template-columns:1fr}.set-nav{position:static;display:flex;gap:4px;overflow-x:auto}.set-nav .nh,.set-nav button small,.set-nav .dot{display:none}.set-nav button{width:auto;white-space:nowrap;padding:8px 10px}.set-nav button .ic{width:26px;height:26px;font-size:13px}.set-nav button.on:before{left:10px;right:10px;top:auto;bottom:0;width:auto;height:2px}.dm-grid{grid-template-columns:1fr}}
+table.mini{width:100%;border-collapse:collapse;font-size:13px}
+table.mini th{font-size:11px;text-transform:uppercase;color:#6b7280;text-align:left;padding:6px}
+table.mini td{padding:4px}
+table.mini input{width:100%;padding:5px 7px;border:1px solid #d1d5db;border-radius:5px;font-size:13px}
+.ok{color:#059669}.err{color:#dc2626}
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:flex-start;justify-content:center;padding:30px 12px;z-index:50;overflow:auto}
+.modal{background:#fff;border-radius:10px;width:100%;max-width:820px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+.modal.sm{max-width:520px}
+.modal.form{max-width:680px}
+.modal.form .mh b{font-size:14px;letter-spacing:.3px}
+.modal.form .mb{padding:18px 18px 6px}
+.modal.form .field label{font-size:12.5px;color:#374151}
+.modal.form .field input,.modal.form .field select{height:34px}
+.modal.form .field textarea{min-height:52px}
+.modal.form .mf{flex-wrap:nowrap;padding:12px 18px 16px;border-top:0}
+.btn-save{flex:1;justify-content:center;padding:10px;font-size:14.5px;font-weight:600}
+.btn-close{padding:10px 18px;font-size:14px;background:#f1f5f9}
+.sp{display:flex;gap:6px;align-items:center}
+.sp select,.sp input{flex:1;min-width:0}
+.sp input[data-dmin]{height:32px;padding:6px 9px;border:1px solid #cbd5e1;border-radius:6px;font-size:13.5px}
+.plus{width:32px;height:32px;flex:none;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;border-radius:6px;font-weight:700;font-size:15px;cursor:pointer}
+.plus:hover{background:#dbeafe}
+.plus.regen{width:40px;height:34px;background:#f1f5f9;border-color:#e2e8f0;color:#475569}
+.lblrow{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+.lblrow label{margin:0}
+.lb-blue{color:#1d4ed8!important;font-weight:700!important}
+.hint{font-size:11.5px;color:#6b7280}
+.mono-inp{font-family:Consolas,monospace}
+.soden-inp{color:#1d4ed8;font-weight:700}
+.domat{color:#dc2626;font-weight:700}
+.fsec{border-top:1px solid #e5e7eb;margin-top:6px;padding-top:12px}
+.fhead{display:flex;justify-content:space-between;align-items:center}
+.fhead b{font-size:12.5px;color:#334155;letter-spacing:.3px}
+.addf{color:#1d4ed8;background:#eff6ff;border-color:#bfdbfe;font-weight:600}
+.frow{display:flex;gap:10px;align-items:center;border:1px solid #e2e8f0;background:#f8fafc;border-radius:6px;padding:8px 10px;margin-top:8px}
+.frow input[type=file]{flex:1;min-width:0;border:1px solid #cbd5e1;border-radius:6px;padding:4px;background:#fff;font-size:13px}
+.frow .fx{border:0;background:none;color:#dc2626;font-size:18px;cursor:pointer;width:24px}
+.dmh{font-weight:600;font-size:13px;margin-bottom:6px}
+.dmlist{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.dmchip{display:inline-flex;align-items:center;gap:4px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:99px;padding:3px 4px 3px 10px;font-size:12.5px}
+.dmchip button{border:0;background:none;color:#dc2626;cursor:pointer;font-size:14px;line-height:1}
+.fg-title{font-weight:700;font-size:15px;margin-bottom:8px}
+.auth-links{display:flex;justify-content:center;margin-top:6px}
+.modal .mh{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border)}
+.modal .mh b{font-size:15px}
+.modal .mh .x{border:0;background:none;font-size:20px;cursor:pointer;color:#64748b}
+.modal .mb{padding:16px 18px}
+.modal .mf{padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 12px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:0 12px}
+.filelist div{display:flex;justify-content:space-between;gap:8px;padding:5px 8px;border:1px solid #e2e8f0;border-radius:5px;margin-top:5px;font-size:13px}
+.filelist .rm{color:#dc2626;cursor:pointer;border:0;background:none}
+.filelist .del{text-decoration:line-through;color:#9ca3af}
+.warn{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:8px 10px;border-radius:6px;font-size:13px;margin-bottom:10px}
+.info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;padding:8px 10px;border-radius:6px;font-size:13px;margin-bottom:10px}
+.prog{height:10px;background:#e5e7eb;border-radius:99px;overflow:hidden;margin:8px 0}
+.prog>div{height:100%;width:0;background:var(--blue2);transition:width .2s}
+.log{max-height:140px;overflow:auto;font-size:12px;color:#b91c1c;margin-top:6px}
+.radio{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:6px;cursor:pointer}
+.radio input{margin-top:3px}
+/* auth */
+.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.auth{background:#fff;border:1px solid var(--border);border-radius:12px;padding:26px;width:100%;max-width:400px;box-shadow:0 10px 30px rgba(15,23,42,.06)}
+.auth .brand{margin-bottom:18px}
+.auth .seg{display:flex;background:#f1f5f9;border-radius:8px;padding:3px;margin-bottom:16px}
+.auth .seg button{flex:1;border:0;background:none;padding:8px;border-radius:6px;cursor:pointer;font-weight:600;color:#475569}
+.auth .seg button.on{background:#fff;color:var(--blue);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.auth .btn{width:100%;justify-content:center;padding:9px}
+.auth .link{color:var(--blue);cursor:pointer;font-size:13px;background:none;border:0;padding:0;margin-top:10px}
+.demo{background:#fefce8;border:1px solid #fde68a;color:#854d0e;font-size:12.5px;padding:8px 10px;border-radius:6px;margin-bottom:14px}
+.demo-bar{background:#fefce8;color:#854d0e;font-size:12.5px;text-align:center;padding:5px;border-bottom:1px solid #fde68a}
+/* toast */
+#toasts{position:fixed;right:14px;bottom:14px;display:flex;flex-direction:column;gap:8px;z-index:99}
+.toast{background:#1e293b;color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;max-width:380px;box-shadow:0 8px 20px rgba(0,0,0,.2)}
+.toast.err{background:#b91c1c}.toast.ok{background:#047857}
+.loading{padding:40px;text-align:center;color:var(--muted)}
+@media (max-width:1000px){.filters{grid-template-columns:repeat(3,1fr)}.stats{grid-template-columns:repeat(2,1fr)}.charts,.set-grid{grid-template-columns:1fr}}
+@media (max-width:640px){.filters,.g2,.g3,.g4{grid-template-columns:1fr 1fr}.stats{grid-template-columns:1fr 1fr}.ty{max-width:220px}}
+</style>
+</head>
+<body>
+<div id="authView" class="hidden"></div>
+
+<div id="appView" class="hidden">
+  <div id="demoBar" class="demo-bar hidden">⚠️ Đang chạy <b>chế độ dùng thử</b> (dữ liệu chỉ lưu trên trình duyệt này). Điền SUPABASE_URL / SUPABASE_ANON_KEY trong file để dùng thật.</div>
+  <header class="top">
+    <div class="brand"><div class="logo">VB</div><div><b>QUẢN LÝ VĂN BẢN</b><small id="userName"></small></div></div>
+    <div class="hbtns">
+      <button class="btn btn-yellow" id="btnFree">🧹 Giải phóng dung lượng</button>
+      <a class="btn hidden" id="btnGit" target="_blank" rel="noopener">🐙 GitHub</a>
+      <button class="btn btn-exit" id="btnLogout">🚪 Thoát</button>
+    </div>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button data-tab="dashboard">📊 Dashboard</button>
+    <button data-tab="di">📤 Văn bản đi</button>
+    <button data-tab="den">📥 Văn bản đến</button>
+    <button data-tab="mat">🔒 Văn bản mật</button>
+    <button data-tab="key">⚙️ Cài đặt</button>
+  </nav>
+  <main id="view"></main>
+</div>
+<div id="toasts"></div>
+<input type="file" id="importInput" accept=".xlsx,.xls,.csv" class="hidden">
+
+<script>
+/* =====================================================================
+   CẤU HÌNH – chỉ cần sửa phần này
+   ===================================================================== */
+const CONFIG = {
+  SUPABASE_URL: 'https://jeetorxpoggirqckwapa.supabase.co',          // vd: https://abcdxyz.supabase.co
+  SUPABASE_ANON_KEY: 'sb_publishable_af-5r_p3ZOItIfNTDbs5EQ_6BvCDY1F', // Project Settings → API → anon public key
+  DEFAULT_SCRIPT_URL: '',   // (tuỳ chọn) link Web App Google Apps Script dùng chung; mỗi tài khoản có thể tự đặt ở tab "Cài đặt" → Kết nối Google Drive
+  GITHUB_URL: '',           // (tuỳ chọn) link GitHub của bạn – để trống thì ẩn nút
+  DEFAULT_MA_CO_QUAN: 'A13.101.04-016',
+  DEFAULT_NOI_BAN_HANH: 'MTTQ phường',
+  DEFAULT_NOI_BAN_HANH_LIST: ['MTTQ phường', 'MTTQ TPCT', 'Đảng ủy phường', 'UBND phường', 'HĐND phường'],
+  MAX_FILE_MB: 25,          // giới hạn dung lượng 1 tệp tải lên
+  PAGE_SIZE: 100            // số dòng mỗi trang trong bảng
+};
+const DEMO = !/^https:\/\//.test(CONFIG.SUPABASE_URL);
+
+/* ============================ TIỆN ÍCH ============================== */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = (n, l) => (n === null || n === undefined || n === '') ? '' : String(n).padStart(l, '0');
+const fmtSize = b => { b = +b || 0; const u = ['B','KB','MB','GB','TB']; let i = 0; while (b >= 1024 && i < 4) { b /= 1024; i++; } return (i ? b.toFixed(2) : b) + ' ' + u[i]; };
+const isoOf = d => `${d.getFullYear()}-${pad(d.getMonth()+1,2)}-${pad(d.getDate(),2)}`;
+const todayISO = () => isoOf(new Date());
+const fmtDate = s => s ? `${s.slice(8,10)}/${s.slice(5,7)}/${s.slice(0,4)}` : '';
+const CUR_YEAR = new Date().getFullYear();
+const noAccent = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D');
+const norm = s => noAccent(s).toLowerCase().replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function safeFileName(name, maxBase = 70) {
+  name = String(name || 'tep');
+  const dot = name.lastIndexOf('.');
+  const ext = dot > 0 ? noAccent(name.slice(dot)).replace(/[^A-Za-z0-9.]/g, '').slice(0, 10) : '';
+  let base = dot > 0 ? name.slice(0, dot) : name;
+  base = noAccent(base).replace(/[\\/:*?"<>|#%{}~&'`^\[\];,=+]+/g, ' ').replace(/\s+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, maxBase) || 'tep';
+  return base + ext;
+}
+function toast(msg, type = '', ms = 3500) {
+  const t = document.createElement('div'); t.className = 'toast ' + type; t.textContent = msg;
+  $('#toasts').appendChild(t); setTimeout(() => t.remove(), ms);
+}
+function fileToB64(file) {
+  return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+}
+function b64ToBlob(b64, mime) {
+  const bin = atob(b64); const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], { type: mime || 'application/octet-stream' });
+}
+function downloadBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+async function pool(items, n, fn, onProgress, isCancelled) {
+  let i = 0, done = 0;
+  const worker = async () => {
+    while (i < items.length) {
+      if (isCancelled && isCancelled()) return;
+      const it = items[i++];
+      try { await fn(it); } catch (e) { it.error = e.message || String(e); }
+      done++; onProgress && onProgress(done, items.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
+}
+async function retry(fn, times = 3) {
+  let last; for (let k = 0; k < times; k++) { try { return await fn(); } catch (e) { last = e; await sleep(800 * (k + 1)); } } throw last;
+}
+function parseAnyDate(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (v instanceof Date && !isNaN(v)) return isoOf(new Date(v.getTime() + 12 * 3600e3)); // tránh lệch múi giờ
+  if (typeof v === 'number' && window.XLSX) { const p = XLSX.SSF.parse_date_code(v); if (p) return `${p.y}-${pad(p.m,2)}-${pad(p.d,2)}`; }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/); if (m) return `${m[3]}-${pad(m[2],2)}-${pad(m[1],2)}`;
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return `${m[1]}-${pad(m[2],2)}-${pad(m[3],2)}`;
+  return null;
+}
+
+/* ===================== DANH MỤC MẶC ĐỊNH ===================== */
+const DEFAULT_LOAI = [
+  ['Biên bản','BB','01'],['Báo cáo','BC','01'],['Chương trình','CTr','01'],['Công văn','CV','01'],
+  ['Giấy mời','GM','04'],['Hướng dẫn','HD','01'],['Kế hoạch','KH','01'],['Quyết định','QĐ','01'],
+  ['Thông báo','TB','01'],['Tờ trình','TTr','02'],['Đề án','ĐA','01'],['Nghị quyết','NQ','01'],
+  ['Thông tri','TTri','01'],['Kết luận','KL','01'],['Quy chế','QC','01'],['Chỉ thị','CT','01'],['Khác','','01']
+].map(([ten, viet_tat, pl]) => ({ ten, viet_tat, pl, dvbq: pad(pl, 4), ky_hieu: ten === 'Công văn' ? 'MTTQ-BTT' : (viet_tat ? viet_tat + '-MTTQ-BTT' : 'MTTQ-BTT') }));
+const DO_MAT = ['Mật', 'Tối mật', 'Tuyệt mật'];
+const KIND = {
+  di:  { label: 'Văn bản đi',  slug: 'VanBanDi',  dateKey: 'ngay_ky',   dateLbl: 'Ngày ký',  monthLbl: 'Tháng ký' },
+  den: { label: 'Văn bản đến', slug: 'VanBanDen', dateKey: 'ngay_nhan', dateLbl: 'Ngày nhận', monthLbl: 'Tháng nhận' },
+  mat: { label: 'Văn bản mật', slug: 'VanBanMat', dateKey: 'ngay_nhan', dateLbl: 'Ngày nhận', monthLbl: 'Tháng nhận' }
+};
+
+/* ===================== LỚP DỮ LIỆU: SUPABASE ===================== */
+function SupaAPI() {
+  const sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  const chk = ({ data, error }) => { if (error) throw new Error(viErr(error.message)); return data; };
+  const mapUser = u => u ? ({ id: u.id, email: u.email, name: (u.user_metadata && u.user_metadata.full_name) || u.email }) : null;
+  async function fetchAll(build) {
+    const out = []; const step = 1000;
+    for (let from = 0; ; from += step) {
+      const d = chk(await build().range(from, from + step - 1));
+      out.push(...d); if (d.length < step) break;
+    }
+    return out;
+  }
+  return {
+    demo: false,
+    async session() { const { data } = await sb.auth.getSession(); return mapUser(data.session && data.session.user); },
+    onAuth(cb) { sb.auth.onAuthStateChange((ev, s) => cb(ev, mapUser(s && s.user))); },
+    async token() { const { data } = await sb.auth.getSession(); return data.session && data.session.access_token; },
+    async signIn(email, password) { chk(await sb.auth.signInWithPassword({ email, password })); },
+    async signUp(email, password, name) { const d = chk(await sb.auth.signUp({ email, password, options: { data: { full_name: name } } })); return !!d.session; },
+    async signOut() { await sb.auth.signOut(); },
+    async resetPw(email) { chk(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.href.split('#')[0] })); },
+    async updatePw(password) { chk(await sb.auth.updateUser({ password })); },
+    async listDocs(kind) { return fetchAll(() => sb.from('documents').select('*, document_files(*)').eq('kind', kind).order('id')); },
+    async getDoc(id) { return chk(await sb.from('documents').select('*, document_files(*)').eq('id', id).single()); },
+    async summary() { return fetchAll(() => sb.from('documents').select('kind,nam').order('id')); },
+    async fileSummary() { return fetchAll(() => sb.from('document_files').select('size,released').order('id')); },
+    async insertDoc(doc) { return chk(await sb.from('documents').insert(doc).select('id').single()); },
+    async insertDocs(rows) { return chk(await sb.from('documents').insert(rows).select('id')); },
+    async updateDoc(id, patch) { chk(await sb.from('documents').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id)); },
+    async deleteDoc(id) { chk(await sb.from('documents').delete().eq('id', id)); },
+    async deleteDocs(ids) { if (ids.length) chk(await sb.from('documents').delete().in('id', ids)); },
+    async insertFile(row) { return chk(await sb.from('document_files').insert(row).select().single()); },
+    async updateFile(id, patch) { chk(await sb.from('document_files').update(patch).eq('id', id)); },
+    async deleteFile(id) { chk(await sb.from('document_files').delete().eq('id', id)); },
+    async getSettings() { return chk(await sb.from('user_settings').select('*').maybeSingle()) || {}; },
+    async saveSettings(p) {
+      const { data } = await sb.auth.getUser();
+      const row = { user_id: data.user.id, ma_co_quan: p.ma_co_quan ?? null, script_url: p.script_url ?? null, loai_map: p.loai_map ?? null, prefs: p.prefs ?? {}, updated_at: new Date().toISOString() };
+      chk(await sb.from('user_settings').upsert(row));
+    }
+  };
+}
+function viErr(m) {
+  m = String(m || '');
+  if (/Invalid login credentials/i.test(m)) return 'Sai email hoặc mật khẩu.';
+  if (/Email not confirmed/i.test(m)) return 'Email chưa được xác nhận. Hãy mở hộp thư để xác nhận (hoặc tắt "Confirm email" trong Supabase).';
+  if (/already registered/i.test(m)) return 'Email này đã được đăng ký.';
+  if (/Password should be at least/i.test(m)) return 'Mật khẩu quá ngắn (tối thiểu 6 ký tự).';
+  if (/rate limit/i.test(m)) return 'Thao tác quá nhanh, vui lòng thử lại sau ít phút.';
+  if (/JWT|expired/i.test(m)) return 'Phiên đăng nhập đã hết hạn, hãy đăng nhập lại.';
+  return m;
+}
+
+/* ===================== LỚP DỮ LIỆU: DÙNG THỬ (localStorage) ===================== */
+function DemoAPI() {
+  const LS = {
+    get: (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } },
+    set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { toast('Bộ nhớ trình duyệt đầy (chế độ dùng thử).', 'err'); } }
+  };
+  let cur = LS.get('qlvb_demo_session', null);
+  const K = n => `qlvb_demo_${n}_${cur && cur.id}`;
+  const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+  const docs = () => LS.get(K('docs'), []); const saveDocs = v => LS.set(K('docs'), v);
+  const files = () => LS.get(K('files'), []); const saveFiles = v => LS.set(K('files'), v);
+  const withFiles = (d, fs) => ({ ...d, document_files: fs.filter(f => f.document_id === d.id) });
+  function seed() {
+    const D = [], F = [];
+    const mk = (kind, o, fnames = []) => { const id = uuid(); D.push({ id, kind, created_at: new Date().toISOString(), ...o }); fnames.forEach(n => F.push({ id: uuid(), document_id: id, file_name: n, drive_id: 'demo_' + uuid(), mime: 'application/pdf', size: 120000 + Math.floor(Math.random() * 400000), released: false })); };
+    const di = [['Tờ trình', 18, 'TTr-MTTQ-BTT', '2026-11-02', 'Về việc xin ý kiến thông báo các đồng chí Ủy viên Ban Thường vụ', 'Nguyễn Thị Hồng Nga'],
+      ['Giấy mời', 171, 'GM-MTTQ', '2026-10-31', 'Giấy mời dự lễ khai giảng lớp tập huấn nghiệp vụ công tác Mặt trận năm 2026', 'Nguyễn Thị Hồng Nga'],
+      ['Công văn', 170, 'MTTQ-BTT', '2026-10-28', 'V/v phối hợp tổ chức Ngày hội Đại đoàn kết toàn dân tộc năm 2026', 'Nguyễn Thị Hồng Nga'],
+      ['Kế hoạch', 40, 'KH-MTTQ-BTT', '2026-10-20', 'Kế hoạch tổ chức Ngày hội Đại đoàn kết toàn dân tộc ở khu dân cư', 'Nguyễn Thị Hồng Nga'],
+      ['Báo cáo', 43, 'BC-MTTQ-BTT', '2026-10-15', 'Báo cáo kết quả công tác Mặt trận tháng 10 năm 2026', 'Nguyễn Thị Hồng Nga'],
+      ['Quyết định', 115, 'QĐ-MTTQ-BTT', '2026-10-10', 'Quyết định thành lập Ban Tổ chức Ngày hội Đại đoàn kết', 'Nguyễn Thị Hồng Nga'],
+      ['Thông báo', 20, 'TB-MTTQ-BTT', '2026-09-22', 'Thông báo kết luận hội nghị Ban Thường trực', 'Nguyễn Thị Hồng Nga'],
+      ['Công văn', 152, 'MTTQ-BTT', '2025-12-18', 'V/v tổng kết công tác Mặt trận năm 2025', 'Nguyễn Thị Hồng Nga'],
+      ['Báo cáo', 39, 'BC-MTTQ-BTT', '2025-12-10', 'Báo cáo tổng kết công tác năm 2025, phương hướng nhiệm vụ năm 2026', 'Nguyễn Thị Hồng Nga']];
+    const loaiOf = t => DEFAULT_LOAI.find(x => x.ten === t) || DEFAULT_LOAI[0];
+    di.forEach(([loai, so, kh, ngay, ty, ky]) => { const L = loaiOf(loai); const nam = +ngay.slice(0, 4);
+      mk('di', { nam, loai_vb: loai, so, ky_hieu: kh, so_vb: `${so}/${kh}`, ngay_ky: ngay, nguoi_ky: ky, noi_ban_hanh: 'MTTQ phường', trich_yeu: ty, pl: L.pl, dvbq: L.dvbq,
+        ma_dinh_danh: `${CONFIG.DEFAULT_MA_CO_QUAN}-${L.pl}-${L.dvbq}-${pad(so,3)}-${L.viet_tat}-${pad(so,4)}-${nam}` }, [`${so}. ${ty.slice(0, 40)}.pdf`]); });
+    const den = [[36, '369/QĐ-MTTQ-BVĐ', 'Quyết định', '2026-10-14', 'MTTQ TPCT', 'Quyết định về việc ban hành Quy chế vận động và sử dụng Quỹ "Vì người nghèo" thành phố Cần Thơ sửa đổi'],
+      [35, '1319/MTTQ-BTT', 'Công văn', '2026-10-02', 'MTTQ TPCT', 'Công văn V/v phối hợp triển khai thực hiện Phong trào "Toàn dân đoàn kết xây dựng đời sống văn hóa"'],
+      [34, '438/KH-UBND', 'Kế hoạch', '2026-09-25', 'UBND phường', 'Kế hoạch tổ chức các hoạt động chào mừng kỷ niệm Ngày truyền thống MTTQ Việt Nam'],
+      [33, '87/GM-ĐU', 'Giấy mời', '2026-09-20', 'Đảng ủy phường', 'Giấy mời dự Hội nghị sơ kết 9 tháng đầu năm 2026']];
+    den.forEach(([sd, sovb, loai, ngay, noi, ty], i) => mk('den', { nam: +ngay.slice(0, 4), so_den: sd, so_vb: sovb, loai_vb: loai, ngay_ky: ngay, ngay_nhan: ngay, nguoi_nhan: cur.name, noi_ban_hanh: noi, trich_yeu: ty }, i === 1 ? ['Cv trien khai thuc hien.pdf', 'KH 438 UBND.pdf', 'Phu luc.pdf'] : [`${loai} ${sovb.replace(/\//g, '-')}.pdf`]));
+    [['559-CV/ĐU', 'Mật', 'Công văn', '2026-08-17', 'Đảng ủy phường', 'Về việc quán triệt triển khai thực hiện Quy định số 199-QĐ/TW'],
+     ['76-KH/ĐU', 'Tối mật', 'Kế hoạch', '2026-08-05', 'Đảng ủy phường', 'Kế hoạch triển khai thực hiện các nhiệm vụ thuộc thẩm quyền']]
+      .forEach(([sovb, dm, loai, ngay, noi, ty]) => mk('mat', { nam: +ngay.slice(0, 4), so_vb: sovb, do_mat: dm, loai_vb: loai, ngay_ky: ngay, ngay_nhan: ngay, nguoi_nhan: cur.name, noi_ban_hanh: noi, trich_yeu: ty }));
+    saveDocs(D); saveFiles(F);
+  }
+  return {
+    demo: true,
+    async session() { return cur; },
+    onAuth() {},
+    async token() { return 'demo'; },
+    async signIn(email, pw) { const u = LS.get('qlvb_demo_users', []).find(x => x.email === email.toLowerCase()); if (!u || u.pw !== pw) throw new Error('Sai email hoặc mật khẩu (chế độ dùng thử).'); cur = { id: u.id, email: u.email, name: u.name }; LS.set('qlvb_demo_session', cur); },
+    async signUp(email, pw, name) {
+      const users = LS.get('qlvb_demo_users', []); email = email.toLowerCase();
+      if (users.some(x => x.email === email)) throw new Error('Email này đã được đăng ký.');
+      if (pw.length < 6) throw new Error('Mật khẩu quá ngắn (tối thiểu 6 ký tự).');
+      const u = { id: uuid(), email, pw, name }; users.push(u); LS.set('qlvb_demo_users', users);
+      cur = { id: u.id, email, name }; LS.set('qlvb_demo_session', cur); seed(); return true;
+    },
+    async signOut() { cur = null; localStorage.removeItem('qlvb_demo_session'); },
+    async resetPw(email, pw) { const users = LS.get('qlvb_demo_users', []); const u = users.find(x => x.email === String(email).toLowerCase()); if (!u) throw new Error('Không tìm thấy tài khoản với email này.'); if (!pw || pw.length < 6) throw new Error('Mật khẩu tối thiểu 6 ký tự.'); u.pw = pw; LS.set('qlvb_demo_users', users); },
+    async updatePw(pw) { const users = LS.get('qlvb_demo_users', []); const u = users.find(x => x.id === cur.id); if (u) { u.pw = pw; LS.set('qlvb_demo_users', users); } },
+    async listDocs(kind) { const fs = files(); return docs().filter(d => d.kind === kind).map(d => withFiles(d, fs)); },
+    async getDoc(id) { const d = docs().find(x => x.id === id); return withFiles(d, files()); },
+    async summary() { return docs().map(d => ({ kind: d.kind, nam: d.nam })); },
+    async fileSummary() { return files().map(f => ({ size: f.size, released: f.released })); },
+    async insertDoc(doc) { const id = uuid(); const all = docs(); all.push({ ...doc, id, created_at: new Date().toISOString() }); saveDocs(all); return { id }; },
+    async insertDocs(rows) { const all = docs(); const out = rows.map(r => { const id = uuid(); all.push({ ...r, id, created_at: new Date().toISOString() }); return { id }; }); saveDocs(all); return out; },
+    async updateDoc(id, patch) { saveDocs(docs().map(d => d.id === id ? { ...d, ...patch } : d)); },
+    async deleteDoc(id) { saveDocs(docs().filter(d => d.id !== id)); saveFiles(files().filter(f => f.document_id !== id)); },
+    async deleteDocs(ids) { const s = new Set(ids); saveDocs(docs().filter(d => !s.has(d.id))); saveFiles(files().filter(f => !s.has(f.document_id))); },
+    async insertFile(row) { const r = { ...row, id: uuid(), released: false }; const all = files(); all.push(r); saveFiles(all); return r; },
+    async updateFile(id, patch) { saveFiles(files().map(f => f.id === id ? { ...f, ...patch } : f)); },
+    async deleteFile(id) { saveFiles(files().filter(f => f.id !== id)); },
+    async getSettings() { return LS.get(K('settings'), {}); },
+    async saveSettings(p) { LS.set(K('settings'), p); }
+  };
+}
+const API = DEMO ? DemoAPI() : SupaAPI();
+
+/* ===================== LƯU TỆP: GOOGLE DRIVE (qua Apps Script) ===================== */
+const demoBlobs = new Map();
+const Drive = {
+  url() { return String(S.settings.script_url || CONFIG.DEFAULT_SCRIPT_URL || '').trim(); },
+  ready() { return DEMO || /^https:\/\/script\.google\.com\//.test(this.url()); },
+  async call(payload) {
+    if (DEMO) return this.demo(payload);
+    if (!this.ready()) throw new Error('Chưa cấu hình liên kết Google Drive (vào tab "Cài đặt" → Kết nối Google Drive).');
+    payload.token = await API.token();
+    let r;
+    try { r = await fetch(this.url(), { method: 'POST', body: JSON.stringify(payload) }); }
+    catch (e) { throw new Error('Không kết nối được Google Drive (kiểm tra link Web App / mạng).'); }
+    if (!r.ok) throw new Error('Google Drive trả lỗi HTTP ' + r.status);
+    let j; try { j = await r.json(); } catch { throw new Error('Phản hồi Drive không hợp lệ – kiểm tra lại quyền truy cập Web App ("Bất kỳ ai").'); }
+    if (!j.ok) throw new Error(j.error || 'Lỗi Google Drive');
+    return j;
+  },
+  async upload(file, meta) { const data = await fileToB64(file); return this.call({ action: 'upload', name: file.name, mime: file.type || 'application/octet-stream', data, kind: meta.kind, nam: meta.nam, _file: file }); },
+  async download(id) { const j = await this.call({ action: 'download', id }); return j.blob ? j.blob : b64ToBlob(j.data, j.mime); },
+  async remove(id) { return this.call({ action: 'delete', id }); },
+  async quota() { return this.call({ action: 'quota' }); },
+  async ping() { return this.call({ action: 'ping' }); },
+  async demo(p) {
+    await sleep(60);
+    if (p.action === 'upload') { const id = 'demo_' + Math.random().toString(36).slice(2); demoBlobs.set(id, p._file); return { ok: true, id, size: p._file.size }; }
+    if (p.action === 'download') return { ok: true, blob: demoBlobs.get(p.id) || new Blob(['Tệp minh họa – chế độ dùng thử.\nKhi dùng thật, tệp gốc được tải từ Google Drive.'], { type: 'text/plain' }) };
+    if (p.action === 'delete') { demoBlobs.delete(p.id); return { ok: true, permanent: true }; }
+    if (p.action === 'quota') return { ok: true, used: 2.1 * 1024 ** 3, limit: 15 * 1024 ** 3 };
+    return { ok: true, uid: 'demo' };
+  }
+};
+
+/* ============================ TRẠNG THÁI ============================== */
+const S = {
+  user: null, settings: {}, tab: 'dashboard',
+  docs: { di: null, den: null, mat: null },
+  filters: { di: {}, den: {}, mat: {} }, page: { di: 1, den: 1, mat: 1 },
+  charts: {}, busy: false, setTab: 'drive'
+};
+const loaiList = () => (Array.isArray(S.settings.loai_map) && S.settings.loai_map.length) ? S.settings.loai_map : DEFAULT_LOAI;
+const loaiInfo = ten => loaiList().find(x => x.ten === ten) || { ten, viet_tat: '', pl: '01', dvbq: '0001', ky_hieu: 'MTTQ-BTT' };
+const maCQ = () => S.settings.ma_co_quan || CONFIG.DEFAULT_MA_CO_QUAN;
+const prefs = () => S.settings.prefs || {};
+function makeMa(d) {
+  if (!d.so) return '';
+  const L = loaiInfo(d.loai_vb);
+  return `${maCQ()}-${pad(d.pl || L.pl, 2)}-${pad(d.dvbq || L.dvbq, 4)}-${pad(d.so, 3)}-${L.viet_tat || 'VB'}-${pad(d.so, 4)}-${d.nam}`;
+}
+async function ensureDocs(kind, force) {
+  if (!S.docs[kind] || force) S.docs[kind] = await API.listDocs(kind);
+  return S.docs[kind];
+}
+function nextSo(kind, nam, loai) {
+  const list = S.docs[kind] || [];
+  if (kind === 'di') return Math.max(0, ...list.filter(d => d.nam == nam && d.loai_vb === loai).map(d => +d.so || 0)) + 1;
+  if (kind === 'den') return Math.max(0, ...list.filter(d => d.nam == nam).map(d => +d.so_den || 0)) + 1;
+  return '';
+}
+function sortRows(kind, rows, asc) {
+  const k = KIND[kind].dateKey; const dir = asc ? 1 : -1;
+  return rows.slice().sort((a, b) => {
+    if (a.nam !== b.nam) return (a.nam - b.nam) * dir;
+    if (kind === 'den' && (a.so_den || 0) !== (b.so_den || 0)) return ((a.so_den || 0) - (b.so_den || 0)) * dir;
+    const da = a[k] || '', db = b[k] || '';
+    if (da !== db) return (da < db ? -1 : 1) * dir;
+    if ((a.so || 0) !== (b.so || 0)) return ((a.so || 0) - (b.so || 0)) * dir;
+    return String(a.created_at || '').localeCompare(String(b.created_at || '')) * dir;
+  });
+}
+
+/* ============================ ĐĂNG NHẬP ============================== */
+function showAuth(mode = 'login') {
+  $('#appView').classList.add('hidden');
+  const v = $('#authView'); v.classList.remove('hidden');
+  const isUp = mode === 'signup', isFg = mode === 'forgot';
+  v.innerHTML = `<div class="auth-wrap"><div class="auth">
+    <div class="brand"><div class="logo">VB</div><div><b>QUẢN LÝ VĂN BẢN</b><small>Văn bản đi · Văn bản đến · Văn bản mật</small></div></div>
+    ${DEMO ? '<div class="demo">⚠️ <b>Chế độ dùng thử</b>: chưa cấu hình Supabase, dữ liệu chỉ lưu trên trình duyệt này. Hãy <b>Đăng ký</b> một tài khoản bất kỳ để xem thử (có sẵn dữ liệu mẫu).</div>' : ''}
+    ${isFg ? `<div class="fg-title">🔑 Lấy lại mật khẩu</div>
+      <div class="small-note" style="margin:-4px 0 12px">${DEMO ? 'Chế độ dùng thử: nhập email đã đăng ký và mật khẩu mới.' : 'Nhập email đã đăng ký, hệ thống sẽ gửi đường link đặt lại mật khẩu vào hộp thư của bạn.'}</div>`
+      : `<div class="seg"><button data-m="login" class="${!isUp ? 'on' : ''}">Đăng nhập</button><button data-m="signup" class="${isUp ? 'on' : ''}">Đăng ký</button></div>`}
+    <form id="authForm">
+      ${isUp ? '<div class="field"><label>Họ và tên</label><input name="name" required placeholder="VD: Văn Hoài Thanh"></div>' : ''}
+      <div class="field"><label>Email</label><input name="email" type="email" required autocomplete="username"></div>
+      ${!isFg || DEMO ? `<div class="field"><label>${isFg ? 'Mật khẩu mới' : 'Mật khẩu'}</label><input name="pw" type="password" required minlength="6" autocomplete="${isUp || isFg ? 'new-password' : 'current-password'}"></div>` : ''}
+      ${isUp || (isFg && DEMO) ? '<div class="field"><label>Nhập lại mật khẩu</label><input name="pw2" type="password" required minlength="6" autocomplete="new-password"></div>' : ''}
+      <button class="btn btn-blue" type="submit">${isUp ? 'Tạo tài khoản' : isFg ? (DEMO ? 'Đặt lại mật khẩu' : 'Gửi link đặt lại mật khẩu') : 'Đăng nhập'}</button>
+      <div id="authMsg" style="margin-top:10px;font-size:13px"></div>
+      <div class="auth-links">${isFg ? '<button type="button" class="link" data-go="login">← Quay lại đăng nhập</button>' : '<button type="button" class="link" data-go="forgot">Quên mật khẩu?</button>'}</div>
+    </form></div></div>`;
+  $$('.seg button, [data-go]', v).forEach(b => b.onclick = () => showAuth(b.dataset.m || b.dataset.go));
+  const msg = (t, c = 'err') => { $('#authMsg').innerHTML = `<span class="${c}">${esc(t)}</span>`; };
+  $('#authForm').onsubmit = async e => {
+    e.preventDefault(); const f = e.target; const btn = $('button[type=submit]', f); btn.disabled = true;
+    try {
+      if (isFg) {
+        if (DEMO && f.pw.value !== f.pw2.value) throw new Error('Mật khẩu nhập lại không khớp.');
+        await API.resetPw(f.email.value.trim(), DEMO ? f.pw.value : undefined);
+        msg(DEMO ? 'Đã đặt lại mật khẩu. Hãy quay lại đăng nhập.' : 'Đã gửi email đặt lại mật khẩu (kiểm tra cả thư rác). Bấm vào link trong email để đặt mật khẩu mới.', 'ok');
+        btn.disabled = false; return;
+      }
+      if (isUp) {
+        if (f.pw.value !== f.pw2.value) throw new Error('Mật khẩu nhập lại không khớp.');
+        const logged = await API.signUp(f.email.value.trim(), f.pw.value, f.name.value.trim());
+        if (!logged) { msg('Đã tạo tài khoản. Hãy mở email để xác nhận rồi đăng nhập.', 'ok'); btn.disabled = false; return; }
+      } else await API.signIn(f.email.value.trim(), f.pw.value);
+      const u = await API.session(); if (u) await enterApp(u);
+    } catch (err) { msg(err.message); }
+    btn.disabled = false;
+  };
+}
+API.onAuth((ev, user) => {
+  if (ev === 'SIGNED_OUT') { S.user = null; showAuth(); }
+  if (ev === 'PASSWORD_RECOVERY') setTimeout(() => openChangePw(true), 300);
+});
+
+async function enterApp(user) {
+  if (S.user && S.user.id === user.id && !$('#appView').classList.contains('hidden')) return;
+  S.user = user; S.docs = { di: null, den: null, mat: null };
+  try { S.settings = await API.getSettings() || {}; } catch (e) { S.settings = {}; toast('Không đọc được cài đặt: ' + e.message, 'err'); }
+  $('#authView').classList.add('hidden'); $('#appView').classList.remove('hidden');
+  $('#demoBar').classList.toggle('hidden', !DEMO);
+  $('#userName').textContent = user.name;
+  if (CONFIG.GITHUB_URL) { $('#btnGit').href = CONFIG.GITHUB_URL; $('#btnGit').classList.remove('hidden'); }
+  switchTab('dashboard');
+}
+$('#btnLogout').onclick = async () => { if (S.busy && !confirm('Đang xử lý, vẫn thoát?')) return; await API.signOut(); S.user = null; showAuth(); };
+$('#btnFree').onclick = () => openFreeSpace();
+$$('#tabs button').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+window.addEventListener('beforeunload', e => { if (S.busy) { e.preventDefault(); e.returnValue = ''; } });
+
+function switchTab(tab) {
+  S.tab = tab;
+  $$('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  if (tab === 'dashboard') renderDashboard();
+  else if (tab === 'key') renderSettings();
+  else renderList(tab);
+}
+
+/* ============================ DASHBOARD ============================== */
+async function renderDashboard() {
+  const v = $('#view');
+  v.innerHTML = `<div class="card storage"><div class="row1">
+      <div>💾 <b>Dung lượng tài khoản của bạn:</b> <code class="mono" id="stUsed">…</code> <span class="muted" id="stFiles"></span></div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="note" id="stDrive">*Google Drive: đang kiểm tra…</span><button class="btn btn-yellow btn-sm" id="btnFree2">🧹 Dọn dẹp & giải phóng</button></div>
+    </div><div class="bar"><div id="stBar" style="width:0"></div></div></div>
+    <div class="stats">
+      <div class="stat"><div><div class="lbl">Văn bản đi</div><div class="num" style="color:#2563eb" id="cDi">…</div></div><div class="ico">📤</div></div>
+      <div class="stat"><div><div class="lbl">Văn bản đến</div><div class="num" style="color:#059669" id="cDen">…</div></div><div class="ico">📥</div></div>
+      <div class="stat"><div><div class="lbl">Văn bản mật</div><div class="num" style="color:#e11d48" id="cMat">…</div></div><div class="ico">🔒</div></div>
+      <div class="stat"><div><div class="lbl">Tổng cộng</div><div class="num" id="cAll">…</div></div><div class="ico">📋</div></div>
+    </div>
+    <div class="charts">
+      <div class="card"><h3>Phân bổ theo loại văn bản</h3><div class="chart-box"><canvas id="ch1"></canvas></div></div>
+      <div class="card"><h3>Thống kê theo năm</h3><div class="chart-box"><canvas id="ch2"></canvas></div></div>
+    </div>`;
+  $('#btnFree2').onclick = () => openFreeSpace();
+  try {
+    const [sum, fs] = await Promise.all([API.summary(), API.fileSummary()]);
+    if (S.tab !== 'dashboard') return;
+    const c = { di: 0, den: 0, mat: 0 }; const years = {};
+    sum.forEach(r => { c[r.kind]++; (years[r.nam] = years[r.nam] || { di: 0, den: 0, mat: 0 })[r.kind]++; });
+    $('#cDi').textContent = c.di; $('#cDen').textContent = c.den; $('#cMat').textContent = c.mat; $('#cAll').textContent = c.di + c.den + c.mat;
+    const live = fs.filter(f => !f.released); const used = live.reduce((a, f) => a + (+f.size || 0), 0);
+    $('#stUsed').textContent = fmtSize(used); $('#stFiles').textContent = `(${live.length} tệp đang lưu trên Drive${fs.length - live.length ? `, ${fs.length - live.length} tệp đã tải về & giải phóng` : ''})`;
+    Object.values(S.charts).forEach(ch => ch && ch.destroy());
+    if (window.Chart) {
+      S.charts.d = new Chart($('#ch1'), { type: 'doughnut', data: { labels: ['Đi', 'Đến', 'Mật'], datasets: [{ data: [c.di, c.den, c.mat], backgroundColor: ['#3b82f6', '#10b981', '#f43f5e'], borderWidth: 1 }] },
+        options: { maintainAspectRatio: false, cutout: '72%', plugins: { legend: { position: 'right', labels: { boxWidth: 12 } } } } });
+      const ys = Object.keys(years).sort();
+      S.charts.b = new Chart($('#ch2'), { type: 'bar', data: { labels: ys, datasets: [
+        { label: 'Đi', data: ys.map(y => years[y].di), backgroundColor: '#3b82f6' },
+        { label: 'Đến', data: ys.map(y => years[y].den), backgroundColor: '#10b981' },
+        { label: 'Mật', data: ys.map(y => years[y].mat), backgroundColor: '#f43f5e' }] },
+        options: { maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+    }
+    if (Drive.ready()) {
+      try { const q = await Drive.quota(); if (S.tab !== 'dashboard') return; const pct = q.limit ? q.used / q.limit * 100 : 0;
+        $('#stDrive').textContent = `*Google Drive: ${fmtSize(q.used)} / ${fmtSize(q.limit)} (${pct.toFixed(2)}%)`; $('#stBar').style.width = Math.min(100, pct) + '%';
+        if (pct > 85) $('#stBar').style.background = '#ef4444';
+      } catch (e) { if (S.tab === 'dashboard') $('#stDrive').textContent = '*Google Drive: ' + e.message; }
+    } else $('#stDrive').innerHTML = '*Chưa kết nối Google Drive – vào tab <b>Cài đặt</b>';
+  } catch (e) { toast('Lỗi tải thống kê: ' + e.message, 'err', 6000); }
+}
+
+/* ============================ DANH SÁCH ============================== */
+async function renderList(kind) {
+  const v = $('#view'); const K = KIND[kind]; const red = kind === 'mat';
+  v.innerHTML = `<div class="card">
+    <div class="toolbar">
+      <div class="search"><input id="fQ" placeholder="${kind === 'di' ? 'Tìm kiếm tự do: mã định danh, số VB, trích yếu, người ký...' : kind === 'den' ? 'Tìm kiếm tự do: số đến, số VB, nơi ban hành, trích yếu, người nhận...' : 'Tìm kiếm tự do: độ mật, số VB, nơi ban hành, trích yếu...'}"></div>
+      <button class="btn" id="bTpl">📄 Mẫu</button>
+      <button class="btn" id="bImp">📥 Nhập Excel</button>
+      <button class="btn" id="bXls">📊 Chỉ Excel</button>
+      <button class="btn ${red ? 'btn-red' : 'btn-green'}" id="bZip">📦 ${red ? 'Xuất Excel (không kèm tệp)' : 'Xuất ZIP (Kèm File & Link)'}</button>
+      <button class="btn ${red ? 'btn-red' : 'btn-blue'}" id="bAdd">+ Thêm mới</button>
+    </div>
+    <div class="filters">
+      <div><label>Loại văn bản</label><select id="fLoai"></select></div>
+      <div><label>Nơi ban hành</label><select id="fNoi"></select></div>
+      <div><label>${K.monthLbl}</label><select id="fThang"><option value="">-- Tất cả --</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}">Tháng ${i + 1}</option>`).join('')}</select></div>
+      <div><label>Năm văn bản</label><select id="fNam"></select></div>
+      <div><label>Từ ${K.dateLbl.toLowerCase()}</label><input type="date" id="fTu"></div>
+      <div><label>Đến ${K.dateLbl.toLowerCase()}</label><input type="date" id="fDen"></div>
+      <div><button class="btn btn-reset" id="bReset">↺ Đặt lại</button></div>
+    </div></div>
+    ${kind === 'di' ? '<div class="infobox" id="maBox"></div>' : ''}
+    <div class="total" id="total">Đang tải…</div>
+    <div class="tablewrap" id="tbl"><div class="loading">⏳ Đang tải dữ liệu…</div></div>
+    <div class="pager" id="pager"></div>`;
+  try { await ensureDocs(kind); } catch (e) { $('#tbl').innerHTML = `<div class="empty err">Lỗi tải dữ liệu: ${esc(e.message)}</div>`; return; }
+  if (S.tab !== kind) return;
+  fillFilterOptions(kind);
+  const F = S.filters[kind];
+  let tmr;
+  const bind = (id, key, ev = 'change') => { const el = $('#' + id); el.value = F[key] || ''; el.addEventListener(ev, () => { clearTimeout(tmr); tmr = setTimeout(() => { F[key] = el.value; S.page[kind] = 1; refreshTable(kind); }, ev === 'input' ? 220 : 0); }); };
+  bind('fQ', 'q', 'input'); bind('fLoai', 'loai'); bind('fNoi', 'noi'); bind('fThang', 'thang'); bind('fNam', 'nam'); bind('fTu', 'tu'); bind('fDen', 'den');
+  $('#bReset').onclick = () => { S.filters[kind] = {}; S.page[kind] = 1; renderList(kind); };
+  $('#bAdd').onclick = () => openDocForm(kind, null);
+  $('#bTpl').onclick = () => downloadTemplate(kind);
+  $('#bImp').onclick = () => { const inp = $('#importInput'); inp.value = ''; inp.onchange = () => inp.files[0] && importExcel(kind, inp.files[0]); inp.click(); };
+  $('#bXls').onclick = () => exportExcelOnly(kind);
+  $('#bZip').onclick = () => kind === 'mat' ? exportExcelOnly(kind) : openExport(kind);
+  $('#tbl').onclick = e => {
+    const a = e.target.closest('[data-act]'); if (!a) return;
+    const doc = S.docs[kind].find(d => d.id === a.dataset.id);
+    if (a.dataset.act === 'edit') openDocForm(kind, doc);
+    if (a.dataset.act === 'del') deleteDoc(kind, doc);
+    if (a.dataset.act === 'file') openFile(doc, a.dataset.f);
+  };
+  refreshTable(kind);
+}
+function fillFilterOptions(kind) {
+  const list = S.docs[kind] || []; const F = S.filters[kind];
+  const loais = [...new Set([...loaiList().map(l => l.ten), ...list.map(d => d.loai_vb).filter(Boolean)])];
+  const nois = [...new Set(list.map(d => d.noi_ban_hanh).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi'));
+  const nams = [...new Set([CUR_YEAR, ...list.map(d => +d.nam)])].sort((a, b) => b - a);
+  $('#fLoai').innerHTML = '<option value="">-- Tất cả loại VB --</option>' + loais.map(x => `<option>${esc(x)}</option>`).join('');
+  $('#fNoi').innerHTML = '<option value="">-- Tất cả nơi ban hành --</option>' + nois.map(x => `<option>${esc(x)}</option>`).join('');
+  $('#fNam').innerHTML = '<option value="">-- Tất cả năm --</option>' + nams.map(x => `<option>${x}</option>`).join('');
+  ['fLoai', 'fNoi', 'fNam'].forEach(id => { const key = { fLoai: 'loai', fNoi: 'noi', fNam: 'nam' }[id]; $('#' + id).value = F[key] || ''; });
+}
+function getFiltered(kind) {
+  const F = S.filters[kind]; const dk = KIND[kind].dateKey; const q = norm(F.q || '');
+  return (S.docs[kind] || []).filter(d => {
+    if (F.loai && d.loai_vb !== F.loai) return false;
+    if (F.noi && d.noi_ban_hanh !== F.noi) return false;
+    if (F.nam && String(d.nam) !== String(F.nam)) return false;
+    const dt = d[dk] || '';
+    if (F.thang && (!dt || +dt.slice(5, 7) !== +F.thang)) return false;
+    if (F.tu && (!dt || dt < F.tu)) return false;
+    if (F.den && (!dt || dt > F.den)) return false;
+    if (q) {
+      const hay = d._hay || (d._hay = norm([d.so_vb, d.ma_dinh_danh, d.trich_yeu, d.nguoi_ky, d.nguoi_nhan, d.noi_ban_hanh, d.loai_vb, d.do_mat, d.so_den, d.ghi_chu, (d.document_files || []).map(f => f.file_name).join(' ')].join(' ')));
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+function filesCell(d) {
+  const fs = d.document_files || [];
+  if (!fs.length) return '<span class="muted">—</span>';
+  return fs.map(f => f.released || !f.drive_id
+    ? `<span class="fl off" title="Đã tải về máy & giải phóng khỏi Drive">📎 ${esc(f.file_name)}</span>`
+    : `<a class="fl" data-act="file" data-id="${d.id}" data-f="${f.id}" title="${esc(f.file_name)}">📎 ${esc(f.file_name)}</a>`).join('');
+}
+function refreshTable(kind) {
+  const rows = sortRows(kind, getFiltered(kind));
+  const PS = CONFIG.PAGE_SIZE; const pages = Math.max(1, Math.ceil(rows.length / PS));
+  if (S.page[kind] > pages) S.page[kind] = pages;
+  const pg = S.page[kind]; const view = rows.slice((pg - 1) * PS, pg * PS);
+  $('#total').innerHTML = `Tổng số: <b>${rows.length}</b> văn bản`;
+  if (kind === 'di') renderMaBox();
+  const act = d => `<td class="act"><a class="e" data-act="edit" data-id="${d.id}">Sửa</a><a class="d" data-act="del" data-id="${d.id}">Xóa</a></td>`;
+  const lt = d => `<td><div class="loai">${esc(d.loai_vb || '')}</div><div class="ty" title="${esc(d.trich_yeu)}">${esc(d.trich_yeu)}</div></td>`;
+  let head, body;
+  if (kind === 'di') {
+    head = '<th>Năm</th><th>Số VB</th><th>Mã định danh</th><th>Loại & trích yếu</th><th>Nơi ban hành</th><th>Ngày ký</th><th>Người ký</th><th>Tệp</th><th>Thao tác</th>';
+    body = view.map(d => `<tr><td>${d.nam}</td><td class="sovb">${esc(d.so_vb)}</td><td>${d.ma_dinh_danh ? `<span class="pill">${esc(d.ma_dinh_danh)}</span>` : ''}</td>${lt(d)}<td>${esc(d.noi_ban_hanh)}</td><td>${fmtDate(d.ngay_ky)}</td><td>${esc(d.nguoi_ky)}</td><td>${filesCell(d)}</td>${act(d)}</tr>`).join('');
+  } else if (kind === 'den') {
+    head = '<th>Số đến</th><th>Năm</th><th>Số VB</th><th>Loại & trích yếu</th><th>Nơi ban hành</th><th>Ngày nhận</th><th>Người nhận</th><th>Tệp</th><th>Thao tác</th>';
+    body = view.map(d => `<tr><td class="soden">${d.so_den ?? ''}</td><td>${d.nam}</td><td class="sovb">${esc(d.so_vb)}</td>${lt(d)}<td>${esc(d.noi_ban_hanh)}</td><td>${fmtDate(d.ngay_nhan)}</td><td>${esc(d.nguoi_nhan)}</td><td>${filesCell(d)}</td>${act(d)}</tr>`).join('');
+  } else {
+    head = '<th>Năm</th><th>Số VB</th><th>Độ mật</th><th>Loại & trích yếu</th><th>Nơi ban hành</th><th>Ngày nhận</th><th>Người nhận</th><th>Tệp</th><th>Thao tác</th>';
+    body = view.map(d => `<tr><td>${d.nam}</td><td class="sovb">${esc(d.so_vb)}</td><td><span class="badge">${esc((d.do_mat || 'Mật').toUpperCase())}</span></td>${lt(d)}<td>${esc(d.noi_ban_hanh)}</td><td>${fmtDate(d.ngay_nhan)}</td><td>${esc(d.nguoi_nhan)}</td><td><span class="muted">—</span></td>${act(d)}</tr>`).join('');
+  }
+  $('#tbl').innerHTML = rows.length ? `<table class="grid"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>` : '<div class="empty">Chưa có văn bản nào phù hợp. Bấm <b>+ Thêm mới</b> để nhập.</div>';
+  $('#pager').innerHTML = pages > 1 ? `<button class="btn btn-sm" id="pPrev" ${pg <= 1 ? 'disabled' : ''}>‹ Trước</button> Trang ${pg}/${pages} <button class="btn btn-sm" id="pNext" ${pg >= pages ? 'disabled' : ''}>Sau ›</button>` : '';
+  if (pages > 1) { $('#pPrev').onclick = () => { S.page[kind]--; refreshTable(kind); $('#tbl').scrollTop = 0; }; $('#pNext').onclick = () => { S.page[kind]++; refreshTable(kind); $('#tbl').scrollTop = 0; }; }
+}
+function renderMaBox() {
+  const box = $('#maBox'); if (!box) return;
+  const F = S.filters.di; const nam = F.nam || CUR_YEAR;
+  const list = (S.docs.di || []).filter(d => String(d.nam) === String(nam));
+  const latest = {}; list.forEach(d => { latest[d.loai_vb] = Math.max(latest[d.loai_vb] || 0, +d.so || 0); });
+  const keys = Object.keys(latest).sort((a, b) => a.localeCompare(b, 'vi'));
+  const old = $('#maInp'); const curVal = old ? old.value : maCQ();
+  box.innerHTML = `<div class="r">🏛️ <b>Mã cơ quan / Phông:</b> <input id="maInp" value="${esc(curVal)}"> <button class="btn btn-blue btn-sm" id="maSave">💾 Lưu mã</button> <button class="btn btn-sm" id="maDef">Mặc định</button>
+      <span class="struct">📌 <b>Cấu trúc:</b> <code>${esc(maCQ())}-[PL(2)]-[ĐVBQ(4)]-[TT(3)]-[KýHiệu]-[SốĐi(4)]-[Năm(4)]</code></span></div>
+    <div class="chips" title="Số văn bản mới nhất theo từng loại trong năm ${nam} (bấm để lọc)">${keys.length ? keys.map(k => `<span class="chip ${F.loai === k ? 'on' : ''}" data-loai="${esc(k)}">${esc(k)}: <b>${latest[k]}</b></span>`).join('') : `<span class="small-note">Năm ${nam} chưa có văn bản đi.</span>`}</div>`;
+  $('#maSave').onclick = async () => { S.settings.ma_co_quan = $('#maInp').value.trim(); try { await API.saveSettings(S.settings); toast('Đã lưu mã cơ quan', 'ok'); renderMaBox(); } catch (e) { toast(e.message, 'err'); } };
+  $('#maDef').onclick = () => { $('#maInp').value = CONFIG.DEFAULT_MA_CO_QUAN; };
+  $$('.chip', box).forEach(c => c.onclick = () => { F.loai = F.loai === c.dataset.loai ? '' : c.dataset.loai; $('#fLoai').value = F.loai; S.page.di = 1; refreshTable('di'); });
+}
+
+/* ============================ MODAL ============================== */
+function openModal(title, body, foot, cls = '') {
+  const bg = document.createElement('div'); bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal ${cls}"><div class="mh"><b>${title}</b><button class="x" title="Đóng">×</button></div><div class="mb">${body}</div><div class="mf">${foot || ''}</div></div>`;
+  document.body.appendChild(bg);
+  const close = () => { if (bg._lock) return; bg.remove(); };
+  $('.x', bg).onclick = close;
+  bg.addEventListener('mousedown', e => { if (e.target === bg) close(); });
+  bg.close = () => bg.remove();
+  return bg;
+}
+
+/* ============================ DANH MỤC: người ký, người nhận, nơi ban hành ============================== */
+const DM_LABEL = { nguoi_ky: 'người ký', nguoi_nhan: 'người nhận', noi_ban_hanh: 'nơi ban hành' };
+function dmGet(type) {
+  const dm = (prefs().danh_muc || {})[type];
+  if (Array.isArray(dm)) return dm;
+  if (type === 'noi_ban_hanh') return CONFIG.DEFAULT_NOI_BAN_HANH_LIST.slice();
+  if (type === 'nguoi_nhan') return S.user ? [S.user.name] : [];
+  return [];
+}
+function dmOptions(type) {
+  const fromDocs = ['di', 'den', 'mat'].flatMap(k => (S.docs[k] || []).map(d => d[type])).filter(Boolean);
+  return [...new Set([...dmGet(type), ...fromDocs])].sort((a, b) => a.localeCompare(b, 'vi'));
+}
+async function dmSave(type, list) {
+  S.settings.prefs = { ...prefs(), danh_muc: { ...(prefs().danh_muc || {}), [type]: list } };
+  await API.saveSettings(S.settings);
+}
+async function dmAdd(type, v) {
+  const list = dmGet(type).slice();
+  if (!list.some(x => x.toLowerCase() === v.toLowerCase())) { list.push(v); await dmSave(type, list); }
+}
+async function addLoai(r) {
+  const list = loaiList().map(x => ({ ...x }));
+  if (list.some(x => x.ten.toLowerCase() === r.ten.toLowerCase())) return;
+  const pl = pad(r.pl || '1', 2);
+  list.push({ ten: r.ten, viet_tat: r.viet_tat || '', ky_hieu: r.ky_hieu || (r.viet_tat ? r.viet_tat + '-MTTQ-BTT' : 'MTTQ-BTT'), pl, dvbq: pad(pl, 4) });
+  S.settings.loai_map = list; await API.saveSettings(S.settings);
+}
+/** Hộp nhập nhỏ (dùng cho nút "+") – trả về object hoặc null */
+function askFields(title, fields) {
+  return new Promise(res => {
+    const m = openModal(title, fields.map(f => `<div class="field"><label>${f.label}</label><input data-k="${f.k}" value="${esc(f.value || '')}" placeholder="${esc(f.ph || '')}"></div>`).join(''),
+      `<button class="btn" data-c>Hủy</button><button class="btn btn-blue" data-o>+ Thêm</button>`, 'sm');
+    const done = v => { m.close(); res(v); };
+    $('[data-c]', m).onclick = () => done(null); $('.x', m).onclick = () => done(null);
+    const ok = () => { const o = {}; $$('input', m).forEach(i => o[i.dataset.k] = i.value.trim()); if (!o[fields[0].k]) return toast('Vui lòng nhập ' + fields[0].label.toLowerCase(), 'err'); done(o); };
+    $('[data-o]', m).onclick = ok;
+    $$('input', m).forEach(i => i.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); ok(); } });
+    setTimeout(() => $('input', m).focus(), 50);
+  });
+}
+
+/* ============================ THÊM / SỬA ============================== */
+function openDocForm(kind, doc) {
+  const isNew = !doc; const K = KIND[kind];
+  const d = doc ? { ...doc } : { nam: CUR_YEAR };
+  if (isNew) {
+    if (kind === 'di') { d.ngay_ky = todayISO(); d.noi_ban_hanh = prefs().noi_ban_hanh_di || ''; d.nguoi_ky = prefs().nguoi_ky_mac_dinh || ''; }
+    if (kind === 'den') { d.so_den = nextSo('den', d.nam); d.ngay_nhan = todayISO(); }
+    if (kind === 'mat') { d.do_mat = 'Mật'; d.ngay_nhan = todayISO(); }
+  }
+  const inp = (name, label, type = 'text', extra = '') => `<div class="field"><label>${label}</label><input name="${name}" type="${type}" value="${esc(d[name] ?? '')}" ${extra}></div>`;
+  const selPlus = (name, label, opts, type) => {
+    const val = d[name] || ''; const all = [...new Set([...opts, ...(val ? [val] : [])])];
+    return `<div class="field"><label>${label}</label><div class="sp"><select name="${name}"><option value="">-- Chọn --</option>${all.map(x => `<option ${x === val ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select><button type="button" class="plus" data-add="${type}" data-for="${name}" title="Thêm ${type === 'loai' ? 'loại văn bản' : DM_LABEL[type]} mới">+</button></div></div>`;
+  };
+  const loais = loaiList().map(l => l.ten);
+  const sLoai = selPlus('loai_vb', 'Loại văn bản', loais, 'loai');
+  const sKy = selPlus('nguoi_ky', 'Người ký', dmOptions('nguoi_ky'), 'nguoi_ky');
+  const sNhan = selPlus('nguoi_nhan', 'Người nhận', dmOptions('nguoi_nhan'), 'nguoi_nhan');
+  const sNoi = selPlus('noi_ban_hanh', 'Nơi ban hành', dmOptions('noi_ban_hanh'), 'noi_ban_hanh');
+  const fileSec = !Drive.ready()
+    ? `<div class="fsec"><div class="fhead"><b>TỆP ĐÍNH KÈM (≤ ${CONFIG.MAX_FILE_MB}MB)</b></div><div class="warn" style="margin:6px 0 0">Chưa kết nối Google Drive nên chưa đính kèm tệp được – vào tab <b>Cài đặt</b> để cấu hình.</div></div>`
+    : `<div class="fsec"><div class="fhead"><b>TỆP ĐÍNH KÈM (≤ ${CONFIG.MAX_FILE_MB}MB)</b><button type="button" class="btn btn-sm addf" id="addRow">+ Thêm file</button></div><div class="filelist" id="exist"></div><div id="rows"></div><div id="upMsg" class="small-note"></div></div>`;
+  let body = '';
+  if (kind === 'di') body = `
+    <div class="g3">${inp('nam', 'Năm', 'number', 'min="2000" max="2100"')}${inp('so_vb', 'Số văn bản', 'text', 'placeholder="VD: 18/TTr-MTTQ-BTT"')}${sLoai}</div>
+    <div class="field"><div class="lblrow"><label class="lb-blue">🏷️ Mã định danh văn bản</label><span class="hint">Tự động tạo theo mã cơ quan</span></div>
+      <div class="sp"><input name="ma_dinh_danh" value="${esc(d.ma_dinh_danh || '')}" class="mono-inp"><button type="button" class="plus regen" id="regen" title="Tạo lại mã định danh">⟳</button></div></div>
+    <div class="field"><label>Trích yếu / Nội dung tóm tắt</label><textarea name="trich_yeu">${esc(d.trich_yeu || '')}</textarea></div>
+    <div class="g3">${sNoi}${inp('ngay_ky', 'Ngày ký', 'date')}${sKy}</div>${fileSec}`;
+  else body = `
+    <div class="g4">${inp('nam', 'Năm', 'number', 'min="2000" max="2100"')}
+      ${kind === 'den' ? inp('so_den', 'Số đến', 'number', 'min="1" class="soden-inp"')
+        : `<div class="field"><label>Độ mật</label><select name="do_mat" class="domat">${DO_MAT.map(x => `<option ${x === d.do_mat ? 'selected' : ''}>${x}</option>`).join('')}</select></div>`}
+      ${inp('ngay_nhan', 'Ngày nhận', 'date')}${sNhan}</div>
+    <div class="g4">${sLoai}${inp('ngay_ky', 'Ngày ký', 'date')}${sKy}${sNoi}</div>
+    <div class="g4">${inp('so_vb', 'Số văn bản')}<div class="field" style="grid-column:span 3"><label>Nội dung tóm tắt</label><input name="trich_yeu" value="${esc(d.trich_yeu || '')}"></div></div>
+    ${kind === 'den' ? fileSec : '<div class="small-note">🔒 Văn bản mật chỉ quản lý thông tin sổ đăng ký, không đính kèm tệp lên Internet.</div>'}`;
+  const m = openModal(`${isNew ? 'THÊM' : 'SỬA'} ${K.label.toUpperCase()}`, `<form id="docForm" autocomplete="off">${body}</form>`,
+    `<button class="btn btn-blue btn-save" id="mSave">Lưu văn bản</button><button class="btn btn-close" id="mCancel">Đóng</button>`, 'form');
+  const f = $('#docForm', m);
+  const addOpt = (sel, v) => { if (![...sel.options].some(o => o.value === v)) sel.add(new Option(v, v)); sel.value = v; };
+
+  // ---- Nút "+" thêm danh mục ngay trong form ----
+  f.addEventListener('click', async e => {
+    const b = e.target.closest('[data-add]'); if (!b) return;
+    const type = b.dataset.add; const sel = f[b.dataset.for];
+    try {
+      if (type === 'loai') {
+        const r = await askFields('Thêm loại văn bản', [{ k: 'ten', label: 'Tên loại văn bản', ph: 'VD: Công điện' }, { k: 'viet_tat', label: 'Viết tắt (dùng trong mã định danh)', ph: 'VD: CĐ' }, { k: 'ky_hieu', label: 'Ký hiệu mặc định (VB đi)', ph: 'VD: CĐ-MTTQ-BTT' }, { k: 'pl', label: 'PL (2 số)', value: '01' }]);
+        if (!r) return; await addLoai(r); addOpt(sel, r.ten); sel.dispatchEvent(new Event('change'));
+      } else {
+        const r = await askFields('Thêm ' + DM_LABEL[type], [{ k: 'v', label: type === 'noi_ban_hanh' ? 'Tên cơ quan ban hành' : 'Họ và tên ' + DM_LABEL[type], ph: type === 'noi_ban_hanh' ? 'VD: UBND phường' : 'VD: Nguyễn Thị Hồng Nga' }]);
+        if (!r) return; await dmAdd(type, r.v); addOpt(sel, r.v);
+      }
+      toast('Đã thêm vào danh mục', 'ok');
+    } catch (err) { toast('Lỗi: ' + err.message, 'err'); }
+  });
+
+  // ---- Tệp đính kèm ----
+  const existing = (doc && doc.document_files || []).map(x => ({ ...x, _rm: false }));
+  const drawExist = () => { const el = $('#exist', m); if (!el) return; el.innerHTML = existing.map((x, i) => `<div><span class="${x._rm ? 'del' : ''}">📎 ${esc(x.file_name)} <span class="muted">${fmtSize(x.size)}${x.released ? ' · đã giải phóng' : ''}</span></span><button type="button" class="rm" data-e="${i}">${x._rm ? '↺ Giữ lại' : '✕ Xóa'}</button></div>`).join(''); };
+  drawExist();
+  if ($('#exist', m)) $('#exist', m).onclick = e => { const b = e.target.closest('button'); if (b) { existing[+b.dataset.e]._rm = !existing[+b.dataset.e]._rm; drawExist(); } };
+  const rowsEl = $('#rows', m);
+  const addRow = () => {
+    const div = document.createElement('div'); div.className = 'frow';
+    div.innerHTML = '<input type="file" multiple><button type="button" class="fx" title="Bỏ tệp">×</button>';
+    const fi = $('input', div);
+    fi.onchange = () => { const big = [...fi.files].filter(x => x.size > CONFIG.MAX_FILE_MB * 1048576); if (big.length) { toast(`"${big[0].name}" vượt quá ${CONFIG.MAX_FILE_MB} MB.`, 'err', 5000); fi.value = ''; } };
+    $('.fx', div).onclick = () => { if ($$('.frow', rowsEl).length > 1) div.remove(); else fi.value = ''; };
+    rowsEl.appendChild(div);
+  };
+  if (rowsEl) { addRow(); $('#addRow', m).onclick = addRow; }
+
+  // ---- Tự động: số văn bản & mã định danh (VB đi) ----
+  const parseSo = s => { const mm = String(s || '').match(/^\s*(\d+)\s*\/?\s*(.*)$/); return mm ? { so: +mm[1], ky_hieu: mm[2].trim() } : { so: null, ky_hieu: String(s || '').trim() }; };
+  if (kind === 'di') {
+    let soAuto = isNew, maTouched = !isNew && !!d.ma_dinh_danh;
+    const recompute = () => { if (maTouched) return; const p = parseSo(f.so_vb.value); f.ma_dinh_danh.value = (p.so && f.loai_vb.value) ? makeMa({ so: p.so, nam: f.nam.value, loai_vb: f.loai_vb.value }) : ''; };
+    const suggest = () => { if (!soAuto || !f.loai_vb.value) return; f.so_vb.value = `${nextSo('di', f.nam.value, f.loai_vb.value)}/${loaiInfo(f.loai_vb.value).ky_hieu}`; };
+    f.loai_vb.onchange = () => { suggest(); recompute(); };
+    f.nam.addEventListener('input', () => { suggest(); recompute(); });
+    f.so_vb.addEventListener('input', () => { soAuto = false; recompute(); });
+    f.ma_dinh_danh.addEventListener('input', () => { maTouched = true; });
+    f.ngay_ky.onchange = () => { if (isNew && f.ngay_ky.value && f.ngay_ky.value.slice(0, 4) !== f.nam.value) { f.nam.value = f.ngay_ky.value.slice(0, 4); suggest(); recompute(); } };
+    $('#regen', m).onclick = () => { maTouched = false; recompute(); if (!f.ma_dinh_danh.value) toast('Chọn loại văn bản và nhập số văn bản (VD: 18/TTr-MTTQ-BTT) trước.', 'err'); };
+  } else {
+    f.ngay_nhan.onchange = () => { if (isNew && f.ngay_nhan.value) { const y = f.ngay_nhan.value.slice(0, 4); if (y !== f.nam.value) { f.nam.value = y; if (kind === 'den') f.so_den.value = nextSo('den', y); } } };
+  }
+
+  // ---- Lưu ----
+  $('#mCancel', m).onclick = () => m.close();
+  $('#mSave', m).onclick = async () => {
+    const val = n => f[n] ? (f[n].value.trim() || null) : null;
+    const need = (n, msg) => { if (!val(n)) { toast(msg, 'err'); f[n].focus(); throw 0; } };
+    let p;
+    try {
+      need('nam', 'Vui lòng nhập năm.');
+      if (kind === 'di') { need('loai_vb', 'Vui lòng chọn loại văn bản.'); need('so_vb', 'Vui lòng nhập số văn bản.'); if (!parseSo(f.so_vb.value).so) { toast('Số văn bản phải bắt đầu bằng số, VD: 18/TTr-MTTQ-BTT', 'err'); f.so_vb.focus(); throw 0; } need('ngay_ky', 'Vui lòng chọn ngày ký.'); }
+      if (kind === 'den') need('so_den', 'Vui lòng nhập số đến.');
+      if (kind !== 'di') { need('ngay_nhan', 'Vui lòng chọn ngày nhận.'); need('so_vb', 'Vui lòng nhập số văn bản.'); }
+      need('trich_yeu', kind === 'di' ? 'Vui lòng nhập trích yếu.' : 'Vui lòng nhập nội dung tóm tắt.');
+    } catch (e) { return; }
+    p = { kind, nam: +f.nam.value, loai_vb: val('loai_vb'), trich_yeu: val('trich_yeu'), noi_ban_hanh: val('noi_ban_hanh'), ngay_ky: val('ngay_ky'), nguoi_ky: val('nguoi_ky'), so_vb: val('so_vb') };
+    if (kind === 'di') { const ps = parseSo(f.so_vb.value); const L = loaiInfo(p.loai_vb); Object.assign(p, { so: ps.so, ky_hieu: ps.ky_hieu || null, ma_dinh_danh: val('ma_dinh_danh'), pl: L.pl, dvbq: L.dvbq }); }
+    if (kind === 'den') Object.assign(p, { so_den: +f.so_den.value, ngay_nhan: val('ngay_nhan'), nguoi_nhan: val('nguoi_nhan') });
+    if (kind === 'mat') Object.assign(p, { do_mat: val('do_mat'), ngay_nhan: val('ngay_nhan'), nguoi_nhan: val('nguoi_nhan') });
+    const pending = rowsEl ? $$('input[type=file]', rowsEl).flatMap(i => [...i.files]) : [];
+    const dup = (S.docs[kind] || []).find(x => x.id !== (doc && doc.id) && x.nam === p.nam && (kind === 'di' ? (x.loai_vb === p.loai_vb && +x.so === p.so) : kind === 'den' ? +x.so_den === p.so_den : x.so_vb === p.so_vb));
+    if (dup && !confirm(`Đã có văn bản trùng số (${kind === 'den' ? 'số đến ' + dup.so_den : dup.so_vb}) trong năm ${p.nam}. Vẫn lưu?`)) return;
+    const btn = $('#mSave', m); btn.disabled = true; btn.textContent = 'Đang lưu…'; m._lock = true; S.busy = true; const msg = $('#upMsg', m);
+    const errs = [];
+    try {
+      let id = doc && doc.id;
+      if (isNew) id = (await API.insertDoc(p)).id; else await API.updateDoc(id, p);
+      for (const x of existing.filter(x => x._rm)) {
+        try { if (x.drive_id) await Drive.remove(x.drive_id); await API.deleteFile(x.id); } catch (e) { errs.push(`Xóa ${x.file_name}: ${e.message}`); }
+      }
+      for (let i = 0; i < pending.length; i++) {
+        const file = pending[i]; if (msg) msg.textContent = `⏳ Đang tải lên ${i + 1}/${pending.length}: ${file.name}…`;
+        try { const r = await retry(() => Drive.upload(file, { kind, nam: p.nam }), 2); await API.insertFile({ document_id: id, file_name: file.name, drive_id: r.id, mime: file.type || null, size: r.size || file.size }); }
+        catch (e) { errs.push(`${file.name}: ${e.message}`); }
+      }
+      const fresh = await API.getDoc(id);
+      const arr = S.docs[kind] || (S.docs[kind] = []); const ix = arr.findIndex(x => x.id === id);
+      if (ix >= 0) arr[ix] = fresh; else arr.push(fresh);
+      m._lock = false; m.close();
+      if (errs.length) toast('Đã lưu văn bản nhưng có lỗi tệp:\n' + errs.join('\n'), 'err', 9000); else toast('Đã lưu văn bản', 'ok');
+      if (S.tab === kind) { fillFilterOptions(kind); refreshTable(kind); }
+    } catch (e) { toast('Lỗi lưu: ' + e.message, 'err', 7000); btn.disabled = false; btn.textContent = 'Lưu văn bản'; m._lock = false; if (msg) msg.textContent = ''; }
+    S.busy = false;
+  };
+}
+async function deleteDoc(kind, doc) {
+  if (!doc || !confirm(`Xóa văn bản "${doc.so_vb || doc.so_den}"${(doc.document_files || []).length ? ' và các tệp đính kèm trên Drive' : ''}?\nThao tác này không thể hoàn tác.`)) return;
+  try {
+    for (const f of (doc.document_files || [])) if (f.drive_id && !f.released) { try { await Drive.remove(f.drive_id); } catch (e) { console.warn(e); } }
+    await API.deleteDoc(doc.id);
+    S.docs[kind] = S.docs[kind].filter(x => x.id !== doc.id); refreshTable(kind); toast('Đã xóa', 'ok');
+  } catch (e) { toast('Lỗi xóa: ' + e.message, 'err'); }
+}
+async function openFile(doc, fid) {
+  const f = (doc.document_files || []).find(x => x.id === fid); if (!f) return;
+  const w = window.open('', '_blank');
+  if (w) w.document.write(`<p style="font-family:sans-serif;padding:20px">⏳ Đang tải "${esc(f.file_name)}" từ Google Drive…</p>`);
+  try {
+    const blob = await Drive.download(f.drive_id);
+    const typed = blob.type ? blob : new Blob([blob], { type: f.mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(typed);
+    const viewable = /pdf|image|text/.test(typed.type);
+    if (w && viewable) w.location.href = url; else { if (w) w.close(); downloadBlob(typed, f.file_name); }
+  } catch (e) { if (w) w.close(); toast('Không mở được tệp: ' + e.message, 'err', 6000); }
+}
+
+/* ============================ EXCEL ============================== */
+const COLS = {
+  di: [['STT', 6, (r, i) => i + 1], ['Năm', 7, r => r.nam], ['Số, ký hiệu', 20, r => r.so_vb], ['Mã định danh', 42, r => r.ma_dinh_danh || ''], ['Loại văn bản', 14, r => r.loai_vb || ''], ['Trích yếu', 60, r => r.trich_yeu || ''], ['Nơi ban hành', 18, r => r.noi_ban_hanh || ''], ['Ngày ký', 12, r => fmtDate(r.ngay_ky)], ['Người ký', 22, r => r.nguoi_ky || ''], ['Ghi chú', 20, r => r.ghi_chu || '']],
+  den: [['STT', 6, (r, i) => i + 1], ['Số đến', 8, r => r.so_den ?? ''], ['Năm', 7, r => r.nam], ['Số, ký hiệu', 20, r => r.so_vb || ''], ['Loại văn bản', 14, r => r.loai_vb || ''], ['Trích yếu', 60, r => r.trich_yeu || ''], ['Nơi ban hành', 20, r => r.noi_ban_hanh || ''], ['Ngày văn bản', 12, r => fmtDate(r.ngay_ky)], ['Ngày nhận', 12, r => fmtDate(r.ngay_nhan)], ['Người nhận', 22, r => r.nguoi_nhan || ''], ['Ghi chú', 20, r => r.ghi_chu || '']],
+  mat: [['STT', 6, (r, i) => i + 1], ['Năm', 7, r => r.nam], ['Số, ký hiệu', 20, r => r.so_vb || ''], ['Độ mật', 10, r => r.do_mat || ''], ['Loại văn bản', 14, r => r.loai_vb || ''], ['Trích yếu', 60, r => r.trich_yeu || ''], ['Nơi ban hành', 20, r => r.noi_ban_hanh || ''], ['Ngày văn bản', 12, r => fmtDate(r.ngay_ky)], ['Ngày nhận', 12, r => fmtDate(r.ngay_nhan)], ['Người nhận', 22, r => r.nguoi_nhan || ''], ['Ghi chú', 20, r => r.ghi_chu || '']]
+};
+function buildWB(kind, rows, linkFor, title) {
+  const cols = COLS[kind];
+  const maxF = kind === 'mat' ? 0 : Math.max(1, ...rows.map(r => (r.document_files || []).length));
+  const header = [...cols.map(c => c[0]), ...Array.from({ length: maxF }, (_, i) => maxF === 1 ? 'Tệp văn bản (bấm để mở)' : `Tệp ${i + 1} (bấm để mở)`)];
+  const aoa = [[title], header];
+  rows.forEach((r, i) => aoa.push([...cols.map(c => c[2](r, i)), ...Array.from({ length: maxF }, (_, j) => { const f = (r.document_files || [])[j]; return f ? f.file_name : ''; })]));
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  rows.forEach((r, i) => (r.document_files || []).forEach((f, j) => {
+    const L = linkFor(f); if (!L) return;
+    const cell = ws[XLSX.utils.encode_cell({ r: i + 2, c: cols.length + j })]; if (!cell) return;
+    if (L.text) cell.v = L.text;
+    if (L.target) cell.l = { Target: L.target, Tooltip: 'Bấm để mở tệp' };
+    if (L.suffix) cell.v = cell.v + L.suffix;
+  }));
+  ws['!cols'] = [...cols.map(c => ({ wch: c[1] })), ...Array.from({ length: maxF }, () => ({ wch: 45 }))];
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: header.length - 1 } }];
+  if (rows.length) ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 1, c: 0 }, e: { r: aoa.length - 1, c: header.length - 1 } }) };
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'DanhSach');
+  return wb;
+}
+function exportLabel(kind) { const y = S.filters[kind].nam; return { year: y || 'TatCa', title: `SỔ ĐĂNG KÝ ${KIND[kind].label.toUpperCase()}${y ? ' NĂM ' + y : ''} – ${S.user.name}` }; }
+function exportExcelOnly(kind) {
+  if (!window.XLSX) return toast('Chưa tải được thư viện Excel (kiểm tra mạng).', 'err');
+  const rows = sortRows(kind, getFiltered(kind), true);
+  if (!rows.length) return toast('Không có văn bản nào để xuất.', 'err');
+  const { year, title } = exportLabel(kind);
+  const wb = buildWB(kind, rows, f => f.released || !f.drive_id ? { suffix: ' (đã tải về máy)' } : (DEMO ? null : { target: `https://drive.google.com/file/d/${f.drive_id}/view` }), title);
+  XLSX.writeFile(wb, `${KIND[kind].slug}_${year}.xlsx`);
+  toast(`Đã xuất ${rows.length} dòng ra Excel.`, 'ok');
+}
+const TPL = {
+  di: [['Năm', 'nam', 'int'], ['Loại văn bản', 'loai_vb'], ['Số', 'so', 'int'], ['Ký hiệu', 'ky_hieu'], ['Ngày ký (dd/mm/yyyy)', 'ngay_ky', 'date'], ['Người ký', 'nguoi_ky'], ['Nơi ban hành', 'noi_ban_hanh'], ['Trích yếu', 'trich_yeu'], ['Mã định danh', 'ma_dinh_danh'], ['Ghi chú', 'ghi_chu']],
+  den: [['Năm', 'nam', 'int'], ['Số đến', 'so_den', 'int'], ['Số văn bản', 'so_vb'], ['Loại văn bản', 'loai_vb'], ['Ngày văn bản (dd/mm/yyyy)', 'ngay_ky', 'date'], ['Ngày nhận (dd/mm/yyyy)', 'ngay_nhan', 'date'], ['Người nhận', 'nguoi_nhan'], ['Nơi ban hành', 'noi_ban_hanh'], ['Trích yếu', 'trich_yeu'], ['Ghi chú', 'ghi_chu']],
+  mat: [['Năm', 'nam', 'int'], ['Số văn bản', 'so_vb'], ['Độ mật', 'do_mat'], ['Loại văn bản', 'loai_vb'], ['Ngày văn bản (dd/mm/yyyy)', 'ngay_ky', 'date'], ['Ngày nhận (dd/mm/yyyy)', 'ngay_nhan', 'date'], ['Người nhận', 'nguoi_nhan'], ['Nơi ban hành', 'noi_ban_hanh'], ['Trích yếu', 'trich_yeu'], ['Ghi chú', 'ghi_chu']]
+};
+function downloadTemplate(kind) {
+  if (!window.XLSX) return toast('Chưa tải được thư viện Excel.', 'err');
+  const ex = { di: [CUR_YEAR, 'Công văn', 1, 'MTTQ-BTT', `05/01/${CUR_YEAR}`, 'Nguyễn Văn A', 'MTTQ phường', 'V/v ...', '', ''],
+    den: [CUR_YEAR, 1, '123/UBND-VP', 'Công văn', `03/01/${CUR_YEAR}`, `05/01/${CUR_YEAR}`, S.user.name, 'UBND phường', 'V/v ...', ''],
+    mat: [CUR_YEAR, '12-CV/ĐU', 'Mật', 'Công văn', `03/01/${CUR_YEAR}`, `05/01/${CUR_YEAR}`, S.user.name, 'Đảng ủy phường', 'V/v ...', ''] }[kind];
+  const ws = XLSX.utils.aoa_to_sheet([TPL[kind].map(x => x[0]), ex]);
+  ws['!cols'] = TPL[kind].map(x => ({ wch: x[1] === 'trich_yeu' ? 60 : 18 }));
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Mau');
+  XLSX.writeFile(wb, `Mau_Nhap_${KIND[kind].slug}.xlsx`);
+}
+async function importExcel(kind, file) {
+  if (!window.XLSX) return toast('Chưa tải được thư viện Excel.', 'err');
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
+    const hi = aoa.findIndex(r => r.some(c => norm(c) === 'trich yeu'));
+    if (hi < 0) throw new Error('Không tìm thấy dòng tiêu đề (cần có cột "Trích yếu"). Hãy dùng file Mẫu.');
+    const hdr = aoa[hi].map(norm); const defs = TPL[kind].map(([h, k, t]) => ({ k, t, i: hdr.indexOf(norm(h)) }));
+    let maxDen = {}; (S.docs.den || []).forEach(d => { maxDen[d.nam] = Math.max(maxDen[d.nam] || 0, d.so_den || 0); });
+    const rows = [];
+    for (const r of aoa.slice(hi + 1)) {
+      const o = { kind };
+      defs.forEach(({ k, t, i }) => { if (i < 0) return; let v = r[i]; if (t === 'int') v = v === '' ? null : parseInt(v, 10) || null; else if (t === 'date') v = parseAnyDate(v); else v = String(v ?? '').trim() || null; o[k] = v; });
+      if (!o.trich_yeu) continue;
+      const dt = o[KIND[kind].dateKey] || o.ngay_ky;
+      if (!o.nam) o.nam = dt ? +dt.slice(0, 4) : CUR_YEAR;
+      if (kind === 'di') { const L = loaiInfo(o.loai_vb); o.ky_hieu = o.ky_hieu || L.ky_hieu; o.so_vb = o.so ? `${o.so}/${o.ky_hieu}` : (o.ky_hieu || ''); o.pl = L.pl; o.dvbq = L.dvbq; if (!o.ma_dinh_danh) o.ma_dinh_danh = makeMa(o) || null; }
+      if (kind === 'den' && !o.so_den) { maxDen[o.nam] = (maxDen[o.nam] || 0) + 1; o.so_den = maxDen[o.nam]; }
+      if (kind === 'mat' && !o.do_mat) o.do_mat = 'Mật';
+      rows.push(o);
+    }
+    if (!rows.length) throw new Error('File không có dòng dữ liệu hợp lệ.');
+    if (!confirm(`Nhập ${rows.length} ${KIND[kind].label.toLowerCase()} từ "${file.name}"?`)) return;
+    S.busy = true; toast(`Đang nhập ${rows.length} dòng…`);
+    for (let i = 0; i < rows.length; i += 500) await API.insertDocs(rows.slice(i, i + 500));
+    await ensureDocs(kind, true); S.busy = false;
+    toast(`Đã nhập ${rows.length} văn bản.`, 'ok'); if (S.tab === kind) renderList(kind);
+  } catch (e) { S.busy = false; toast('Lỗi nhập Excel: ' + e.message, 'err', 8000); }
+}
+
+/* ===================== XUẤT CUỐI NĂM: EXCEL + THƯ MỤC TỆP ===================== */
+function openExport(kind) {
+  if (!window.XLSX) return toast('Chưa tải được thư viện Excel.', 'err');
+  const rows = sortRows(kind, getFiltered(kind), true);
+  if (!rows.length) return toast('Không có văn bản nào để xuất (kiểm tra bộ lọc).', 'err');
+  const { year, title } = exportLabel(kind);
+  const folder = `${KIND[kind].slug}_${year}`; const sub = 'TepVanBan';
+  const used = new Set(); const items = [];
+  rows.forEach(r => (r.document_files || []).forEach(f => {
+    const prefix = kind === 'di' ? `${r.nam}_${pad(r.so, 4)}_${safeFileName(loaiInfo(r.loai_vb).viet_tat || 'VB', 10)}` : `${r.nam}_Den${pad(r.so_den, 4)}`;
+    let name = prefix + '_' + safeFileName(f.file_name, 60); let k = 2;
+    while (used.has(name.toLowerCase())) { const dot = name.lastIndexOf('.'); name = (dot > 0 ? name.slice(0, dot) : name).replace(/_\d+$/, '') + '_' + k++ + (dot > 0 ? name.slice(dot) : ''); }
+    used.add(name.toLowerCase());
+    items.push({ f, name, size: +f.size || 0, ok: false, avail: !!f.drive_id && !f.released });
+  }));
+  const avail = items.filter(i => i.avail); const total = avail.reduce((a, i) => a + i.size, 0);
+  const canDir = 'showDirectoryPicker' in window;
+  const m = openModal('📦 Xuất văn bản kèm tệp & hyperlink', `
+    <div class="info">Sẽ xuất <b>${rows.length}</b> văn bản (theo bộ lọc hiện tại${S.filters[kind].nam ? ', năm ' + S.filters[kind].nam : ', <b>tất cả các năm</b>'}) · <b>${avail.length}</b> tệp trên Drive · khoảng <b>${fmtSize(total)}</b>${items.length - avail.length ? ` · ${items.length - avail.length} tệp đã giải phóng trước đó (chỉ ghi tên)` : ''}.</div>
+    <div style="font-size:13px;margin-bottom:8px">Kết quả: thư mục <code class="mono">${esc(folder)}/</code> gồm file <code class="mono">DanhSach_${esc(folder)}.xlsx</code> và thư mục <code class="mono">${sub}/</code>. Bấm tên tệp trong Excel sẽ mở đúng tệp đã lưu.</div>
+    <label class="radio"><input type="radio" name="how" value="dir" ${canDir ? 'checked' : 'disabled'}><span><b>Lưu thẳng vào một thư mục trên máy</b> (khuyến nghị cho hàng nghìn tệp – Chrome/Edge). Nếu bị gián đoạn, chạy lại sẽ bỏ qua tệp đã tải.${canDir ? '' : ' <span class="err">Trình duyệt này không hỗ trợ – hãy dùng Chrome hoặc Edge.</span>'}</span></label>
+    <label class="radio"><input type="radio" name="how" value="zip" ${canDir ? '' : 'checked'}><span><b>Tải 1 file ZIP</b> – tiện nhưng tốn RAM; nên dùng khi dưới ~1 GB (có thể lọc theo tháng để chia nhỏ).</span></label>
+    <div id="exProg" class="hidden"><div class="prog"><div id="exBar"></div></div><div id="exTxt" style="font-size:13px"></div><div class="log" id="exLog"></div></div>`,
+    `<button class="btn" id="exCancel">Đóng</button><button class="btn btn-green" id="exGo">▶ Bắt đầu xuất</button>`);
+  let cancelled = false;
+  $('#exCancel', m).onclick = () => { if (S.busy) { cancelled = true; $('#exTxt', m).textContent = 'Đang dừng…'; } else m.close(); };
+  $('#exGo', m).onclick = async () => {
+    const how = $('input[name=how]:checked', m).value; let root;
+    if (how === 'dir') { try { const parent = await window.showDirectoryPicker({ mode: 'readwrite', id: 'qlvb-export' }); root = await parent.getDirectoryHandle(folder, { create: true }); } catch (e) { return; } }
+    $('#exGo', m).disabled = true; $('#exProg', m).classList.remove('hidden'); S.busy = true; m._lock = true; $('#exCancel', m).textContent = 'Dừng';
+    const bar = $('#exBar', m), txt = $('#exTxt', m), log = $('#exLog', m); let bytes = 0;
+    log.innerHTML = ''; avail.forEach(i => { i.error = null; if (how === 'zip') i.ok = false; });
+    const prog = (d, n) => { bar.style.width = (n ? d / n * 100 : 100) + '%'; txt.textContent = `Đã xử lý ${d}/${n} tệp · ${fmtSize(bytes)}`; };
+    try {
+      let zip, zdir, fdir;
+      if (how === 'zip') { zip = new JSZip(); zdir = zip.folder(folder).folder(sub); } else fdir = await root.getDirectoryHandle(sub, { create: true });
+      await pool(avail, 4, async it => {
+        if (how === 'dir') {
+          try { const old = await (await fdir.getFileHandle(it.name)).getFile(); if (old.size > 0 && (!it.size || old.size === it.size)) { it.ok = true; bytes += old.size; return; } } catch (e) {}
+          const blob = await retry(() => Drive.download(it.f.drive_id));
+          const h = await fdir.getFileHandle(it.name, { create: true }); const w = await h.createWritable(); await w.write(blob); await w.close();
+          bytes += blob.size;
+        } else { const blob = await retry(() => Drive.download(it.f.drive_id)); zdir.file(it.name, blob); bytes += blob.size; }
+        it.ok = true;
+      }, prog, () => cancelled);
+      prog(avail.filter(i => i.ok || i.error).length, avail.length);
+      const bad = avail.filter(i => !i.ok);
+      bad.forEach(i => { log.innerHTML += `<div>✕ ${esc(i.f.file_name)}: ${esc(i.error || 'chưa tải (đã dừng)')}</div>`; });
+      const map = new Map(items.map(i => [i.f.id, i]));
+      const wb = buildWB(kind, rows, f => { const it = map.get(f.id); if (!it) return null; if (it.ok) return { target: `${sub}/${it.name}`, text: f.file_name }; return { suffix: it.avail ? ' (LỖI TẢI – chưa có tệp)' : ' (đã giải phóng, không còn trên Drive)' }; }, title);
+      const xbuf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' }); const xname = `DanhSach_${folder}.xlsx`;
+      if (how === 'dir') { const h = await root.getFileHandle(xname, { create: true }); const w = await h.createWritable(); await w.write(new Blob([xbuf])); await w.close(); }
+      else { zip.folder(folder).file(xname, xbuf); txt.textContent = 'Đang nén ZIP…'; const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' }, md => { bar.style.width = md.percent + '%'; }); downloadBlob(blob, folder + '.zip'); }
+      txt.innerHTML = bad.length ? `<span class="err">Hoàn tất, còn ${bad.length} tệp lỗi/chưa tải. Bấm "Bắt đầu xuất" lại để thử tiếp${how === 'dir' ? ' (tệp đã có sẽ bỏ qua)' : ''}.</span>` : `<span class="ok">✅ Hoàn tất: ${avail.length} tệp + file Excel (${fmtSize(bytes)}).${how === 'dir' ? ` Đã lưu vào thư mục "${esc(folder)}".` : ''}</span>`;
+      if (!bad.length) toast('Xuất xong! Kiểm tra lại thư mục trên máy trước khi giải phóng dung lượng.', 'ok', 7000);
+    } catch (e) { txt.innerHTML = `<span class="err">Lỗi: ${esc(e.message)}</span>`; }
+    S.busy = false; m._lock = false; $('#exGo', m).disabled = false; $('#exCancel', m).textContent = 'Đóng'; cancelled = false;
+  };
+}
+
+/* ============================ GIẢI PHÓNG DUNG LƯỢNG ============================== */
+async function openFreeSpace() {
+  if (!Drive.ready()) return toast('Chưa kết nối Google Drive.', 'err');
+  try { await Promise.all(['di', 'den', 'mat'].map(k => ensureDocs(k))); } catch (e) { return toast(e.message, 'err'); }
+  const L = k => S.docs[k] || [];
+  const years = [...new Set(['di', 'den', 'mat'].flatMap(k => L(k).map(d => +d.nam)))].sort((a, b) => b - a);
+  if (!years.length) return toast('Chưa có văn bản nào.', 'err');
+  const m = openModal('🧹 Giải phóng dung lượng (Drive + Supabase)', `
+    <div class="warn">Thao tác này <b>xóa vĩnh viễn tệp trên Google Drive</b> và <b>xóa dữ liệu trong Supabase</b>, không thể hoàn tác. Chỉ làm sau khi đã <b>Xuất ZIP / thư mục</b> và mở thử file Excel trên máy thấy đầy đủ.</div>
+    <div class="g2"><div class="field"><label>Loại</label><select id="frKind"><option value="all">Tất cả (đi + đến + mật)</option><option value="di">Văn bản đi</option><option value="den">Văn bản đến</option><option value="mat">Văn bản mật</option></select></div>
+    <div class="field"><label>Năm</label><select id="frYear">${years.map(y => `<option ${y === CUR_YEAR - 1 ? 'selected' : ''}>${y}</option>`).join('')}</select></div></div>
+    <label style="display:flex;gap:8px;font-size:13px;margin-bottom:8px"><input type="checkbox" id="frDoc" checked> <span>Xóa luôn <b>thông tin văn bản</b> (sổ đăng ký) trong Supabase – văn bản sẽ biến mất khỏi chương trình.</span></label>
+    <div class="info" id="frInfo"></div>
+    <label style="display:flex;gap:8px;font-size:13px;margin-bottom:8px"><input type="checkbox" id="frChk"> Tôi đã tải về và kiểm tra bản lưu trên máy.</label>
+    <div class="field"><label>Gõ chữ <b>XOA</b> để xác nhận</label><input id="frTxt" autocomplete="off"></div>
+    <div id="frProg" class="hidden"><div class="prog"><div id="frBar"></div></div><div id="frMsg" style="font-size:13px"></div></div>`,
+    `<button class="btn" id="frClose">Đóng</button><button class="btn btn-red" id="frGo">Xóa khỏi Drive & Supabase</button>`, 'sm');
+  const delDocs = () => $('#frDoc', m).checked;
+  // Văn bản của năm/loại đã chọn + toàn bộ bản ghi tệp của chúng (cả bản ghi cũ đã "giải phóng" trước đây)
+  const sel = () => {
+    const k = $('#frKind', m).value, y = +$('#frYear', m).value;
+    const docs = (k === 'all' ? ['di', 'den', 'mat'] : [k]).flatMap(kk => L(kk).filter(d => +d.nam === y));
+    const items = docs.flatMap(d => (d.document_files || []).map(f => ({ d, f })));
+    return { docs, items };
+  };
+  const onDrive = it => !!it.f.drive_id && !it.f.released;
+  const info = () => {
+    const { docs, items } = sel(); const live = items.filter(onDrive); const old = items.length - live.length;
+    $('#frInfo', m).innerHTML = `Có <b>${live.length}</b> tệp (${fmtSize(live.reduce((a, it) => a + (+it.f.size || 0), 0))}) trên Drive`
+      + (old ? ` và <b>${old}</b> bản ghi tệp cũ trong Supabase` : '') + ' sẽ bị xóa.'
+      + (delDocs() ? `<br>Sẽ xóa <b>${docs.length}</b> văn bản khỏi sổ đăng ký (Supabase).` : '<br>Thông tin sổ đăng ký (số, trích yếu, ngày…) được giữ lại.');
+  };
+  $('#frKind', m).onchange = info; $('#frYear', m).onchange = info; $('#frDoc', m).onchange = info; info();
+  $('#frClose', m).onclick = () => m.close();
+  // Tệp đã bị xóa tay trên Drive → coi như đã xóa, vẫn tiếp tục xóa trong Supabase
+  const isNotFound = e => /not found|could not be found|no item|không tìm thấy|404/i.test(String(e && e.message || e));
+  $('#frGo', m).onclick = async () => {
+    const { docs, items } = sel(); const wantDocs = delDocs();
+    if (!items.length && !(wantDocs && docs.length)) return toast('Không có gì để xóa.', 'err');
+    if (!$('#frChk', m).checked || $('#frTxt', m).value.trim().toUpperCase() !== 'XOA') return toast('Hãy tích xác nhận và gõ XOA.', 'err');
+    $('#frGo', m).disabled = true; m._lock = true; S.busy = true; $('#frProg', m).classList.remove('hidden');
+    const bar = $('#frBar', m), msg = $('#frMsg', m); let trashOnly = false;
+    // 1) Xóa tệp: Drive trước, rồi bản ghi document_files trong Supabase
+    await pool(items, 3, async it => {
+      const f = it.f;
+      if (onDrive(it)) {
+        try { const r = await retry(() => Drive.remove(f.drive_id)); if (r && r.permanent === false) trashOnly = true; }
+        catch (e) { if (!isNotFound(e)) throw e; }
+      }
+      await retry(() => API.deleteFile(f.id));
+      it.d.document_files = (it.d.document_files || []).filter(x => x.id !== f.id);
+      delete it.d._hay;
+      it.done = true;
+    }, (d, n) => { bar.style.width = d / n * 100 + '%'; msg.textContent = `Đang xóa tệp ${d}/${n}`; });
+    const badFiles = items.filter(it => it.error); const okFiles = items.filter(it => it.done).length;
+    // 2) Xóa văn bản trong sổ đăng ký (chỉ những văn bản đã xóa hết tệp, để không bỏ sót tệp trên Drive)
+    let okDocs = 0, skipped = 0, docErr = '';
+    if (wantDocs) {
+      const ready = docs.filter(d => !(d.document_files || []).length); skipped = docs.length - ready.length;
+      const ids = ready.map(d => d.id);
+      for (let i = 0; i < ids.length; i += 100) {
+        const chunk = ids.slice(i, i + 100);
+        try {
+          await retry(() => API.deleteDocs(chunk));
+          const gone = new Set(chunk);
+          ['di', 'den', 'mat'].forEach(k => { if (S.docs[k]) S.docs[k] = S.docs[k].filter(d => !gone.has(d.id)); });
+          okDocs += chunk.length;
+        } catch (e) { docErr = e.message; skipped += chunk.length; }
+        bar.style.width = (ids.length ? Math.min(i + 100, ids.length) / ids.length * 100 : 100) + '%';
+        msg.textContent = `Đang xóa văn bản ${Math.min(i + 100, ids.length)}/${ids.length}`;
+      }
+    }
+    const parts = [`Đã xóa ${okFiles} tệp`]; if (wantDocs) parts.push(`${okDocs} văn bản`);
+    msg.innerHTML = `<span class="ok">✅ ${parts.join(' và ')} khỏi Drive & Supabase.</span>`
+      + (badFiles.length ? `<br><span class="err">Lỗi ${badFiles.length} tệp: ${esc(badFiles[0].error)}</span>` : '')
+      + (skipped ? `<br><span class="err">${skipped} văn bản chưa xóa${docErr ? ': ' + esc(docErr) : ' (còn tệp lỗi)'} – bấm lại để thử tiếp.</span>` : '')
+      + (trashOnly ? '<br><span class="err">Tệp đang ở Thùng rác Drive – hãy mở Google Drive và "Dọn sạch thùng rác" để thu hồi dung lượng.</span>' : '');
+    S.busy = false; m._lock = false; $('#frGo', m).disabled = false; info();
+    if (S.tab === 'dashboard') renderDashboard();
+    else if (KIND[S.tab]) { fillFilterOptions(S.tab); refreshTable(S.tab); }
+  };
+}
+
+/* ============================ QUẢN LÝ KEY / CÀI ĐẶT ============================== */
+const SET_TABS = [
+  ['drive', '🔗', 'Kết nối Google Drive', 'Nơi lưu tệp đính kèm'],
+  ['org', '🏛️', 'Thông tin đơn vị & tài khoản', 'Mã cơ quan, mặc định, mật khẩu'],
+  ['dm', '👥', 'Người ký · người nhận · nơi ban hành', 'Danh mục chọn nhanh'],
+  ['loai', '📚', 'Loại văn bản & mã định danh', 'Viết tắt, ký hiệu, PL, ĐVBQ']
+];
+function renderSettings() {
+  const st = S.settings; const lm = loaiList().map(x => ({ ...x }));
+  if (!SET_TABS.some(t => t[0] === S.setTab)) S.setTab = 'drive';
+  const driveOk = Drive.ready() && !DEMO;
+  const initials = String(S.user.name || S.user.email || '?').trim().split(/\s+/).slice(-1)[0].charAt(0).toUpperCase();
+  const selOpts = (type, cur) => `<option value="">-- Không chọn sẵn --</option>${dmOptions(type).map(x => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('')}`;
+  const panel = (id, title, desc, body, foot, extra = '') => `<section class="sx-panel ${S.setTab === id ? '' : 'hidden'}" data-panel="${id}">
+      <div class="sx-head"><div><h2>${title}</h2><p>${desc}</p></div>${extra}</div>
+      <div class="sx-body">${body}</div>${foot ? `<div class="sx-foot">${foot}</div>` : ''}</section>`;
+  $('#view').innerHTML = `<div class="set-wrap" id="setWrap">
+    <nav class="set-nav"><div class="nh">Cài đặt</div>
+      ${SET_TABS.map(([id, ic, t, sub]) => `<button data-st="${id}" class="${S.setTab === id ? 'on' : ''}"><span class="ic">${ic}</span><span>${t}<small>${sub}</small></span>${id === 'drive' ? `<span class="dot ${driveOk || DEMO ? 'ok' : ''}" id="navDot" title="${driveOk ? 'Đã cấu hình' : 'Chưa cấu hình'}"></span>` : ''}</button>`).join('')}
+    </nav>
+    <div>
+    ${panel('drive', '🔗 Kết nối Google Drive', 'Tệp đính kèm của văn bản đi/đến được lưu trên Google Drive thông qua một Web App Google Apps Script. Mỗi tài khoản có thể dùng Drive riêng (15 GB miễn phí).',
+      `<div class="field"><label>Link Web App Google Apps Script</label><input id="sUrl" class="mono-inp" placeholder="https://script.google.com/macros/s/…/exec" value="${esc(st.script_url || '')}"></div>
+       <div id="sTestMsg" style="margin:-2px 0 12px;font-size:13px"></div>
+       <div class="sx-sec">Hướng dẫn nhanh</div>
+       <ol class="steps"><li>Mở <b>script.google.com</b>, tạo dự án mới và dán mã Apps Script (xem file HUONG_DAN.md, bước 3).</li>
+         <li>Chọn <b>Triển khai → Bản triển khai mới → Ứng dụng web</b>, quyền truy cập: <b>Bất kỳ ai</b>.</li>
+         <li>Sao chép đường link có đuôi <code class="mono">/exec</code>, dán vào ô trên rồi bấm <b>Kiểm tra kết nối</b>.</li></ol>
+       ${CONFIG.DEFAULT_SCRIPT_URL ? '<div class="small-note">Để trống sẽ dùng Drive chung của đơn vị.</div>' : ''}`,
+      `<button class="btn" id="sTest">🔍 Kiểm tra kết nối</button><button class="btn btn-blue" id="sSaveUrl">💾 Lưu cấu hình</button>`,
+      `<span class="stag ${driveOk || DEMO ? 'on' : 'off'}" id="driveTag">${DEMO ? '● Chế độ dùng thử' : driveOk ? '● Đã cấu hình' : '● Chưa cấu hình'}</span>`)}
+    ${panel('org', '🏛️ Thông tin đơn vị & tài khoản', 'Mã cơ quan dùng để tạo mã định danh văn bản đi; giá trị mặc định được điền sẵn khi thêm văn bản đi mới.',
+      `<div class="sx-sec">Đơn vị</div>
+       <div class="field"><label>Mã cơ quan / Phông</label><input id="sMa" class="mono-inp" value="${esc(maCQ())}">
+         <div class="ma-prev">📌 Cấu trúc: <code id="maPrev"></code></div></div>
+       <div class="g2"><div class="field"><label>Nơi ban hành mặc định (VB đi)</label><select id="sNoi">${selOpts('noi_ban_hanh', prefs().noi_ban_hanh_di)}</select></div>
+         <div class="field"><label>Người ký mặc định (VB đi)</label><select id="sKy">${selOpts('nguoi_ky', prefs().nguoi_ky_mac_dinh)}</select></div></div>
+       <div class="sx-gap"></div><div class="sx-sec">Tài khoản</div>
+       <div class="acc"><div class="av">${esc(initials)}</div><div class="who"><b>${esc(S.user.name)}</b><span>${esc(S.user.email)}</span></div><button class="btn" id="sPw">🔑 Đổi mật khẩu</button></div>
+       <div class="small-note" style="margin-top:8px">Dữ liệu, cài đặt và tệp của tài khoản này được lưu riêng, tài khoản khác không xem được.</div>`,
+      `<button class="btn" id="sMaDef">Mã mặc định</button><button class="btn btn-blue" id="sSaveOrg">💾 Lưu thông tin</button>`)}
+    ${panel('dm', '👥 Danh mục người ký · người nhận · nơi ban hành', 'Các mục ở đây hiện trong ô "-- Chọn --" khi thêm văn bản. Cũng có thể thêm nhanh bằng nút <b>+</b> ngay trong form nhập văn bản. Thay đổi được lưu ngay.',
+      `<div class="dm-grid">${['nguoi_ky', 'nguoi_nhan', 'noi_ban_hanh'].map(t => `<div class="dm-col"><div class="dmh"><span>${{ nguoi_ky: '✍️ Người ký', nguoi_nhan: '📨 Người nhận', noi_ban_hanh: '🏛️ Nơi ban hành' }[t]}</span><span class="cnt" data-dmc="${t}">0</span></div>
+        <div class="sp"><input data-dmin="${t}" placeholder="Thêm ${DM_LABEL[t]}…"><button class="plus" data-dmadd="${t}" title="Thêm">+</button></div><div class="dmlist" data-dml="${t}"></div></div>`).join('')}</div>`, '')}
+    ${panel('loai', '📚 Danh mục loại văn bản & mã định danh', '<b>Viết tắt</b> dùng trong mã định danh; <b>Ký hiệu mặc định</b> dùng cho số văn bản đi (VD: TTr-MTTQ-BTT → "18/TTr-MTTQ-BTT").',
+      `<div class="lm-wrap"><table class="mini"><thead><tr><th>#</th><th>Tên loại</th><th>Viết tắt</th><th>Ký hiệu mặc định</th><th>PL (2)</th><th>ĐVBQ (4)</th><th></th></tr></thead><tbody id="lmBody"></tbody></table></div>`,
+      `<div class="left"><button class="btn" id="lmAdd">+ Thêm loại</button><button class="btn" id="lmReset">↺ Khôi phục mặc định</button></div><button class="btn btn-blue" id="lmSave">💾 Lưu danh mục</button>`,
+      `<span class="stag on" id="lmCount"></span>`)}
+    </div></div>`;
+  const wrap = $('#setWrap');
+
+  // ---- Chuyển tab con ----
+  const refreshOrgSelects = () => { const n = $('#sNoi'), k = $('#sKy'); const nv = n.value || prefs().noi_ban_hanh_di, kv = k.value || prefs().nguoi_ky_mac_dinh; n.innerHTML = selOpts('noi_ban_hanh', nv); k.innerHTML = selOpts('nguoi_ky', kv); };
+  $$('.set-nav button', wrap).forEach(b => b.onclick = () => {
+    S.setTab = b.dataset.st;
+    $$('.set-nav button', wrap).forEach(x => x.classList.toggle('on', x === b));
+    $$('[data-panel]', wrap).forEach(p => p.classList.toggle('hidden', p.dataset.panel !== S.setTab));
+    if (S.setTab === 'org') refreshOrgSelects();
+    b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+
+  // ---- Danh mục người ký / người nhận / nơi ban hành ----
+  const drawDm = t => {
+    const list = dmGet(t);
+    $(`[data-dml=${t}]`, wrap).innerHTML = list.map((x, i) => `<span class="dmchip">${esc(x)}<button data-dmdel="${t}" data-i="${i}" title="Xóa">×</button></span>`).join('') || '<span class="muted" style="font-size:12px">Chưa có</span>';
+    $(`[data-dmc=${t}]`, wrap).textContent = list.length;
+  };
+  ['nguoi_ky', 'nguoi_nhan', 'noi_ban_hanh'].forEach(drawDm);
+  const dmAddFrom = async t => { const el = $(`[data-dmin=${t}]`, wrap); const v = el.value.trim(); if (!v) return; try { await dmAdd(t, v); el.value = ''; drawDm(t); toast('Đã thêm', 'ok'); } catch (e) { toast(e.message, 'err'); } };
+  $$('[data-dmadd]', wrap).forEach(b => b.onclick = () => dmAddFrom(b.dataset.dmadd));
+  $$('[data-dmin]', wrap).forEach(i => i.onkeydown = e => { if (e.key === 'Enter') dmAddFrom(i.dataset.dmin); });
+  wrap.addEventListener('click', async e => { const b = e.target.closest('[data-dmdel]'); if (!b) return; const t = b.dataset.dmdel; const list = dmGet(t).slice(); list.splice(+b.dataset.i, 1); try { await dmSave(t, list); drawDm(t); } catch (err) { toast(err.message, 'err'); } });
+
+  // ---- Danh mục loại văn bản ----
+  const draw = () => {
+    $('#lmBody').innerHTML = lm.map((x, i) => `<tr><td class="no">${i + 1}</td><td><input data-i="${i}" data-k="ten" value="${esc(x.ten)}" placeholder="Tên loại"></td><td><input data-i="${i}" data-k="viet_tat" value="${esc(x.viet_tat)}" style="min-width:70px"></td><td><input data-i="${i}" data-k="ky_hieu" value="${esc(x.ky_hieu)}" class="mono-inp" style="min-width:150px"></td><td><input data-i="${i}" data-k="pl" value="${esc(x.pl)}" maxlength="2" style="width:60px" class="mono-inp"></td><td><input data-i="${i}" data-k="dvbq" value="${esc(x.dvbq)}" maxlength="4" style="width:80px" class="mono-inp"></td><td><button class="btn btn-sm btn-exit" data-del="${i}" title="Xóa loại này">✕</button></td></tr>`).join('');
+    $('#lmCount').textContent = `${lm.length} loại văn bản`;
+  };
+  draw();
+  $('#lmBody').oninput = e => { const t = e.target; if (t.dataset.k) lm[+t.dataset.i][t.dataset.k] = t.value.trim(); };
+  $('#lmBody').onclick = e => { const b = e.target.closest('[data-del]'); if (b) { lm.splice(+b.dataset.del, 1); draw(); } };
+  $('#lmAdd').onclick = () => { lm.push({ ten: '', viet_tat: '', ky_hieu: 'MTTQ-BTT', pl: '01', dvbq: '0001' }); draw(); const ins = $$('#lmBody input[data-k=ten]'); ins[ins.length - 1].focus(); };
+  $('#lmReset').onclick = () => { if (confirm('Khôi phục danh mục mặc định?')) { lm.splice(0, lm.length, ...DEFAULT_LOAI.map(x => ({ ...x }))); draw(); } };
+  const save = async (patch, okMsg) => { Object.assign(S.settings, patch); try { await API.saveSettings(S.settings); toast(okMsg, 'ok'); } catch (e) { toast('Lỗi lưu: ' + e.message, 'err'); } };
+  $('#lmSave').onclick = () => { const clean = lm.filter(x => x.ten); clean.forEach(x => { x.pl = pad(x.pl || '1', 2); x.dvbq = pad(x.dvbq || '1', 4); }); save({ loai_map: clean }, 'Đã lưu danh mục loại văn bản'); };
+
+  // ---- Thông tin đơn vị ----
+  const prevMa = () => { $('#maPrev').textContent = `${$('#sMa').value.trim() || '…'}-[PL(2)]-[ĐVBQ(4)]-[TT(3)]-[KýHiệu]-[SốĐi(4)]-[Năm(4)]`; };
+  prevMa(); $('#sMa').oninput = prevMa;
+  $('#sMaDef').onclick = () => { $('#sMa').value = CONFIG.DEFAULT_MA_CO_QUAN; prevMa(); };
+  $('#sSaveOrg').onclick = () => save({ ma_co_quan: $('#sMa').value.trim(), prefs: { ...prefs(), noi_ban_hanh_di: $('#sNoi').value.trim(), nguoi_ky_mac_dinh: $('#sKy').value.trim() } }, 'Đã lưu thông tin đơn vị');
+  $('#sPw').onclick = () => openChangePw(false);
+
+  // ---- Google Drive ----
+  const setDriveState = () => { const ok = Drive.ready() && !DEMO; $('#navDot').classList.toggle('ok', ok || DEMO); if (!DEMO) { const tg = $('#driveTag'); tg.className = 'stag ' + (ok ? 'on' : 'off'); tg.textContent = ok ? '● Đã cấu hình' : '● Chưa cấu hình'; } };
+  $('#sSaveUrl').onclick = async () => { const u = $('#sUrl').value.trim(); if (u && !/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(u)) return toast('Link phải có dạng https://script.google.com/macros/s/…/exec', 'err', 6000); await save({ script_url: u }, 'Đã lưu link Google Drive'); setDriveState(); };
+  $('#sTest').onclick = async () => {
+    const box = $('#sTestMsg'); const old = S.settings.script_url; const u = $('#sUrl').value.trim(); if (u) S.settings.script_url = u;
+    box.textContent = '⏳ Đang kiểm tra…';
+    try { await Drive.ping(); const q = await Drive.quota(); box.innerHTML = `<span class="ok">✅ Kết nối thành công. Drive đã dùng ${fmtSize(q.used)} / ${fmtSize(q.limit)}.</span>`; }
+    catch (e) { box.innerHTML = `<span class="err">✕ ${esc(e.message)}</span>`; }
+    S.settings.script_url = old;
+  };
+}
+function openChangePw(recovery) {
+  const m = openModal(recovery ? 'Đặt mật khẩu mới' : 'Đổi mật khẩu', `<div class="field"><label>Mật khẩu mới</label><input type="password" id="np1" minlength="6"></div><div class="field"><label>Nhập lại</label><input type="password" id="np2" minlength="6"></div>`,
+    `<button class="btn" id="npC">Hủy</button><button class="btn btn-blue" id="npS">Lưu</button>`, 'sm');
+  $('#npC', m).onclick = () => m.close();
+  $('#npS', m).onclick = async () => { const a = $('#np1', m).value, b = $('#np2', m).value; if (a.length < 6) return toast('Mật khẩu tối thiểu 6 ký tự', 'err'); if (a !== b) return toast('Hai mật khẩu không khớp', 'err');
+    try { await API.updatePw(a); m.close(); toast('Đã đổi mật khẩu', 'ok'); if (recovery) { const u = await API.session(); if (u) enterApp(u); } } catch (e) { toast(e.message, 'err'); } };
+}
+
+/* ============================ KHỞI ĐỘNG ============================== */
+(async () => {
+  if (!DEMO && !window.supabase) { document.body.innerHTML = '<div class="empty err">Không tải được thư viện Supabase. Kiểm tra kết nối mạng rồi tải lại trang.</div>'; return; }
+  try { const u = await API.session(); if (u) await enterApp(u); else showAuth(); } catch (e) { showAuth(); toast(e.message, 'err'); }
+})();
+</script>
+</body>
+</html>
