@@ -322,11 +322,12 @@ async function retry(fn, times = 3) {
 }
 function parseAnyDate(v) {
   if (v === null || v === undefined || v === '') return null;
-  if (v instanceof Date && !isNaN(v)) return isoOf(new Date(v.getTime() + 12 * 3600e3)); // tránh lệch múi giờ
+  if (Object.prototype.toString.call(v) === '[object Date]') return isNaN(v) ? null : isoOf(new Date(v.getTime() + 12 * 3600e3)); // tránh lệch múi giờ
   if (typeof v === 'number' && window.XLSX) { const p = XLSX.SSF.parse_date_code(v); if (p) return `${p.y}-${pad(p.m,2)}-${pad(p.d,2)}`; }
   const s = String(v).trim();
-  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/); if (m) return `${m[3]}-${pad(m[2],2)}-${pad(m[1],2)}`;
-  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (m) return `${m[1]}-${pad(m[2],2)}-${pad(m[3],2)}`;
+  const ok = (y, mo, d) => (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) ? `${y}-${pad(mo,2)}-${pad(d,2)}` : null;
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4}|\d{2})(?:[\sT,].*)?$/); if (m) return ok(m[3].length === 2 ? 2000 + +m[3] : +m[3], +m[2], +m[1]); // dd/mm/yyyy, dd/mm/yy, có thể kèm giờ
+  m = s.match(/^(\d{4})[\-\/.](\d{1,2})[\-\/.](\d{1,2})/); if (m) return ok(+m[1], +m[2], +m[3]);
   return null;
 }
 
@@ -660,7 +661,7 @@ async function renderList(kind) {
   const v = $('#view'); const K = KIND[kind]; const red = kind === 'mat';
   v.innerHTML = `<div class="card">
     <div class="toolbar">
-      <div class="search"><input id="fQ" placeholder="${kind === 'di' ? 'Tìm kiếm tự do: mã định danh, số VB, trích yếu, người ký...' : kind === 'den' ? 'Tìm kiếm tự do: số đến, số VB, nơi ban hành, trích yếu, người nhận...' : 'Tìm kiếm tự do: độ mật, số VB, nơi ban hành, trích yếu...'}"></div>
+      <div class="search"><input id="fQ" placeholder="${kind === 'di' ? 'Tìm kiếm tự do: mã định danh, số VB, trích yếu, người ký...' : kind === 'den' ? 'Tìm kiếm tự do: Số ID, số VB, nơi ban hành, trích yếu, người nhận...' : 'Tìm kiếm tự do: độ mật, số VB, nơi ban hành, trích yếu...'}"></div>
       <button class="btn" id="bTpl">📄 Mẫu</button>
       <button class="btn" id="bImp">📥 Nhập Excel</button>
       <button class="btn" id="bXls">📊 Chỉ Excel</button>
@@ -750,7 +751,7 @@ function refreshTable(kind) {
     head = '<th>Năm</th><th>Số VB</th><th>Mã định danh</th><th>Loại & trích yếu</th><th>Nơi ban hành</th><th>Ngày ký</th><th>Người ký</th><th>Tệp</th><th>Thao tác</th>';
     body = view.map(d => `<tr><td>${d.nam}</td><td class="sovb">${esc(d.so_vb)}</td><td>${d.ma_dinh_danh ? `<span class="pill">${esc(d.ma_dinh_danh)}</span>` : ''}</td>${lt(d)}<td>${esc(d.noi_ban_hanh)}</td><td>${fmtDate(d.ngay_ky)}</td><td>${esc(d.nguoi_ky)}</td><td>${filesCell(d)}</td>${act(d)}</tr>`).join('');
   } else if (kind === 'den') {
-    head = '<th>Số đến</th><th>Năm</th><th>Số VB</th><th>Loại & trích yếu</th><th>Nơi ban hành</th><th>Ngày nhận</th><th>Người nhận</th><th>Tệp</th><th>Thao tác</th>';
+    head = '<th>Số ID</th><th>Năm</th><th>Số VB</th><th>Loại & trích yếu</th><th>Nơi ban hành</th><th>Ngày nhận</th><th>Người nhận</th><th>Tệp</th><th>Thao tác</th>';
     body = view.map(d => `<tr><td class="soden">${d.so_den ?? ''}</td><td>${d.nam}</td><td class="sovb">${esc(d.so_vb)}</td>${lt(d)}<td>${esc(d.noi_ban_hanh)}</td><td>${fmtDate(d.ngay_nhan)}</td><td>${esc(d.nguoi_nhan)}</td><td>${filesCell(d)}</td>${act(d)}</tr>`).join('');
   } else {
     head = '<th>Năm</th><th>Số VB</th><th>Độ mật</th><th>Loại & trích yếu</th><th>Nơi ban hành</th><th>Ngày nhận</th><th>Người nhận</th><th>Tệp</th><th>Thao tác</th>';
@@ -860,7 +861,7 @@ function openDocForm(kind, doc) {
     <div class="g3">${sNoi}${inp('ngay_ky', 'Ngày ký', 'date')}${sKy}</div>${fileSec}`;
   else body = `
     <div class="g4">${inp('nam', 'Năm', 'number', 'min="2000" max="2100"')}
-      ${kind === 'den' ? inp('so_den', 'Số đến', 'number', 'min="1" class="soden-inp"')
+      ${kind === 'den' ? inp('so_den', 'Số ID', 'number', 'min="1" class="soden-inp"')
         : `<div class="field"><label>Độ mật</label><select name="do_mat" class="domat">${DO_MAT.map(x => `<option ${x === d.do_mat ? 'selected' : ''}>${x}</option>`).join('')}</select></div>`}
       ${inp('ngay_nhan', 'Ngày nhận', 'date')}${sNhan}</div>
     <div class="g4">${sLoai}${inp('ngay_ky', 'Ngày ký', 'date')}${sKy}${sNoi}</div>
@@ -928,7 +929,7 @@ function openDocForm(kind, doc) {
     try {
       need('nam', 'Vui lòng nhập năm.');
       if (kind === 'di') { need('loai_vb', 'Vui lòng chọn loại văn bản.'); need('so_vb', 'Vui lòng nhập số văn bản.'); if (!parseSo(f.so_vb.value).so) { toast('Số văn bản phải bắt đầu bằng số, VD: 18/TTr-MTTQ-BTT', 'err'); f.so_vb.focus(); throw 0; } need('ngay_ky', 'Vui lòng chọn ngày ký.'); }
-      if (kind === 'den') need('so_den', 'Vui lòng nhập số đến.');
+      if (kind === 'den') need('so_den', 'Vui lòng nhập Số ID.');
       if (kind !== 'di') { need('ngay_nhan', 'Vui lòng chọn ngày nhận.'); need('so_vb', 'Vui lòng nhập số văn bản.'); }
       need('trich_yeu', kind === 'di' ? 'Vui lòng nhập trích yếu.' : 'Vui lòng nhập nội dung tóm tắt.');
     } catch (e) { return; }
@@ -938,7 +939,7 @@ function openDocForm(kind, doc) {
     if (kind === 'mat') Object.assign(p, { do_mat: val('do_mat'), ngay_nhan: val('ngay_nhan'), nguoi_nhan: val('nguoi_nhan') });
     const pending = rowsEl ? $$('input[type=file]', rowsEl).flatMap(i => [...i.files]) : [];
     const dup = (S.docs[kind] || []).find(x => x.id !== (doc && doc.id) && x.nam === p.nam && (kind === 'di' ? (x.loai_vb === p.loai_vb && +x.so === p.so) : kind === 'den' ? +x.so_den === p.so_den : x.so_vb === p.so_vb));
-    if (dup && !confirm(`Đã có văn bản trùng số (${kind === 'den' ? 'số đến ' + dup.so_den : dup.so_vb}) trong năm ${p.nam}. Vẫn lưu?`)) return;
+    if (dup && !confirm(`Đã có văn bản trùng số (${kind === 'den' ? 'Số ID ' + dup.so_den : dup.so_vb}) trong năm ${p.nam}. Vẫn lưu?`)) return;
     const btn = $('#mSave', m); btn.disabled = true; btn.textContent = 'Đang lưu…'; m._lock = true; S.busy = true; const msg = $('#upMsg', m);
     const errs = [];
     try {
@@ -986,8 +987,8 @@ async function openFile(doc, fid) {
 /* ============================ EXCEL ============================== */
 const COLS = {
   di: [['STT', 6, (r, i) => i + 1], ['Năm', 7, r => r.nam], ['Số, ký hiệu', 20, r => r.so_vb], ['Mã định danh', 42, r => r.ma_dinh_danh || ''], ['Loại văn bản', 14, r => r.loai_vb || ''], ['Trích yếu', 60, r => r.trich_yeu || ''], ['Nơi ban hành', 18, r => r.noi_ban_hanh || ''], ['Ngày ký', 12, r => fmtDate(r.ngay_ky)], ['Người ký', 22, r => r.nguoi_ky || ''], ['Ghi chú', 20, r => r.ghi_chu || '']],
-  den: [['STT', 6, (r, i) => i + 1], ['Số đến', 8, r => r.so_den ?? ''], ['Năm', 7, r => r.nam], ['Số, ký hiệu', 20, r => r.so_vb || ''], ['Loại văn bản', 14, r => r.loai_vb || ''], ['Trích yếu', 60, r => r.trich_yeu || ''], ['Nơi ban hành', 20, r => r.noi_ban_hanh || ''], ['Ngày văn bản', 12, r => fmtDate(r.ngay_ky)], ['Ngày nhận', 12, r => fmtDate(r.ngay_nhan)], ['Người nhận', 22, r => r.nguoi_nhan || ''], ['Ghi chú', 20, r => r.ghi_chu || '']],
-  mat: [['STT', 6, (r, i) => i + 1], ['Năm', 7, r => r.nam], ['Số, ký hiệu', 20, r => r.so_vb || ''], ['Độ mật', 10, r => r.do_mat || ''], ['Loại văn bản', 14, r => r.loai_vb || ''], ['Trích yếu', 60, r => r.trich_yeu || ''], ['Nơi ban hành', 20, r => r.noi_ban_hanh || ''], ['Ngày văn bản', 12, r => fmtDate(r.ngay_ky)], ['Ngày nhận', 12, r => fmtDate(r.ngay_nhan)], ['Người nhận', 22, r => r.nguoi_nhan || ''], ['Ghi chú', 20, r => r.ghi_chu || '']]
+  den: [['STT', 6, (r, i) => i + 1], ['Số ID', 8, r => r.so_den ?? ''], ['Năm', 7, r => r.nam], ['Số, ký hiệu', 20, r => r.so_vb || ''], ['Loại văn bản', 14, r => r.loai_vb || ''], ['Trích yếu', 60, r => r.trich_yeu || ''], ['Nơi ban hành', 20, r => r.noi_ban_hanh || ''], ['Ngày văn bản', 12, r => fmtDate(r.ngay_ky)], ['Người ký', 22, r => r.nguoi_ky || ''], ['Ngày nhận', 12, r => fmtDate(r.ngay_nhan)], ['Người nhận', 22, r => r.nguoi_nhan || ''], ['Ghi chú', 20, r => r.ghi_chu || '']],
+  mat: [['STT', 6, (r, i) => i + 1], ['Năm', 7, r => r.nam], ['Số, ký hiệu', 20, r => r.so_vb || ''], ['Độ mật', 10, r => r.do_mat || ''], ['Loại văn bản', 14, r => r.loai_vb || ''], ['Trích yếu', 60, r => r.trich_yeu || ''], ['Nơi ban hành', 20, r => r.noi_ban_hanh || ''], ['Ngày văn bản', 12, r => fmtDate(r.ngay_ky)], ['Người ký', 22, r => r.nguoi_ky || ''], ['Ngày nhận', 12, r => fmtDate(r.ngay_nhan)], ['Người nhận', 22, r => r.nguoi_nhan || ''], ['Ghi chú', 20, r => r.ghi_chu || '']]
 };
 function buildWB(kind, rows, linkFor, title) {
   const cols = COLS[kind];
@@ -1021,46 +1022,144 @@ function exportExcelOnly(kind) {
 }
 const TPL = {
   di: [['Năm', 'nam', 'int'], ['Loại văn bản', 'loai_vb'], ['Số', 'so', 'int'], ['Ký hiệu', 'ky_hieu'], ['Ngày ký (dd/mm/yyyy)', 'ngay_ky', 'date'], ['Người ký', 'nguoi_ky'], ['Nơi ban hành', 'noi_ban_hanh'], ['Trích yếu', 'trich_yeu'], ['Mã định danh', 'ma_dinh_danh'], ['Ghi chú', 'ghi_chu']],
-  den: [['Năm', 'nam', 'int'], ['Số đến', 'so_den', 'int'], ['Số văn bản', 'so_vb'], ['Loại văn bản', 'loai_vb'], ['Ngày văn bản (dd/mm/yyyy)', 'ngay_ky', 'date'], ['Ngày nhận (dd/mm/yyyy)', 'ngay_nhan', 'date'], ['Người nhận', 'nguoi_nhan'], ['Nơi ban hành', 'noi_ban_hanh'], ['Trích yếu', 'trich_yeu'], ['Ghi chú', 'ghi_chu']],
-  mat: [['Năm', 'nam', 'int'], ['Số văn bản', 'so_vb'], ['Độ mật', 'do_mat'], ['Loại văn bản', 'loai_vb'], ['Ngày văn bản (dd/mm/yyyy)', 'ngay_ky', 'date'], ['Ngày nhận (dd/mm/yyyy)', 'ngay_nhan', 'date'], ['Người nhận', 'nguoi_nhan'], ['Nơi ban hành', 'noi_ban_hanh'], ['Trích yếu', 'trich_yeu'], ['Ghi chú', 'ghi_chu']]
+  den: [['Năm', 'nam', 'int'], ['Số ID', 'so_den', 'int'], ['Số văn bản', 'so_vb'], ['Loại văn bản', 'loai_vb'], ['Ngày văn bản (dd/mm/yyyy)', 'ngay_ky', 'date'], ['Người ký', 'nguoi_ky'], ['Ngày nhận (dd/mm/yyyy)', 'ngay_nhan', 'date'], ['Người nhận', 'nguoi_nhan'], ['Nơi ban hành', 'noi_ban_hanh'], ['Trích yếu', 'trich_yeu'], ['Ghi chú', 'ghi_chu']],
+  mat: [['Năm', 'nam', 'int'], ['Số văn bản', 'so_vb'], ['Độ mật', 'do_mat'], ['Loại văn bản', 'loai_vb'], ['Ngày văn bản (dd/mm/yyyy)', 'ngay_ky', 'date'], ['Người ký', 'nguoi_ky'], ['Ngày nhận (dd/mm/yyyy)', 'ngay_nhan', 'date'], ['Người nhận', 'nguoi_nhan'], ['Nơi ban hành', 'noi_ban_hanh'], ['Trích yếu', 'trich_yeu'], ['Ghi chú', 'ghi_chu']]
 };
 function downloadTemplate(kind) {
   if (!window.XLSX) return toast('Chưa tải được thư viện Excel.', 'err');
   const ex = { di: [CUR_YEAR, 'Công văn', 1, 'MTTQ-BTT', `05/01/${CUR_YEAR}`, 'Nguyễn Văn A', 'MTTQ phường', 'V/v ...', '', ''],
-    den: [CUR_YEAR, 1, '123/UBND-VP', 'Công văn', `03/01/${CUR_YEAR}`, `05/01/${CUR_YEAR}`, S.user.name, 'UBND phường', 'V/v ...', ''],
-    mat: [CUR_YEAR, '12-CV/ĐU', 'Mật', 'Công văn', `03/01/${CUR_YEAR}`, `05/01/${CUR_YEAR}`, S.user.name, 'Đảng ủy phường', 'V/v ...', ''] }[kind];
+    den: [CUR_YEAR, 1, '123/UBND-VP', 'Công văn', `03/01/${CUR_YEAR}`, 'Trần Văn B', `05/01/${CUR_YEAR}`, S.user.name, 'UBND phường', 'V/v ...', ''],
+    mat: [CUR_YEAR, '12-CV/ĐU', 'Mật', 'Công văn', `03/01/${CUR_YEAR}`, 'Trần Văn B', `05/01/${CUR_YEAR}`, S.user.name, 'Đảng ủy phường', 'V/v ...', ''] }[kind];
   const ws = XLSX.utils.aoa_to_sheet([TPL[kind].map(x => x[0]), ex]);
   ws['!cols'] = TPL[kind].map(x => ({ wch: x[1] === 'trich_yeu' ? 60 : 18 }));
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Mau');
   XLSX.writeFile(wb, `Mau_Nhap_${KIND[kind].slug}.xlsx`);
 }
+/* ---- Nhận diện tiêu đề cột (chấp nhận nhiều cách gọi khác nhau) ---- */
+const hnorm = s => norm(s).replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim();
+const HDR_ALIAS = {
+  nam: ['nam', 'nam van ban'],
+  so_den: ['so den', 'so vb den', 'so van ban den'],
+  so_vb: ['so van ban', 'so ky hieu', 'so va ky hieu', 'so ky hieu van ban', 'so vb', 'so hieu van ban'],
+  loai_vb: ['loai van ban', 'loai vb', 'loai'],
+  ngay_ky: ['ngay van ban', 'ngay ky', 'ngay ban hanh', 'ngay vb', 'ngay thang van ban'],
+  nguoi_ky: ['nguoi ky', 'nguoi ky van ban'],
+  ngay_nhan: ['ngay nhan', 'ngay den', 'ngay nhan van ban'],
+  nguoi_nhan: ['nguoi nhan', 'nguoi nhan van ban'],
+  noi_ban_hanh: ['noi ban hanh', 'co quan ban hanh', 'don vi ban hanh', 'noi gui', 'co quan gui'],
+  trich_yeu: ['trich yeu', 'trich yeu noi dung', 'noi dung tom tat', 'tom tat noi dung', 'noi dung'],
+  do_mat: ['do mat'], ghi_chu: ['ghi chu'],
+  so: ['so', 'so di'], ky_hieu: ['ky hieu'], ma_dinh_danh: ['ma dinh danh']
+};
+function mapHeader(kind, row) {
+  const H = row.map(hnorm); const used = new Set(); const idx = {};
+  const names = (h, k) => [hnorm(h), ...(HDR_ALIAS[k] || [])];
+  // Lượt 1: khớp đúng tên; lượt 2: tiêu đề bắt đầu bằng tên (VD "Trích yếu nội dung văn bản")
+  for (const exact of [true, false]) for (const [h, k] of TPL[kind]) {
+    if (idx[k] !== undefined) continue;
+    const al = names(h, k);
+    const i = H.findIndex((x, j) => x && !used.has(j) && al.some(a => exact ? x === a : (a.includes(' ') && x.startsWith(a + ' '))));
+    if (i >= 0) { idx[k] = i; used.add(i); }
+  }
+  return idx;
+}
+/** Chuẩn hóa tên loại VB theo danh mục; nếu trống thì đoán từ ký hiệu (VD 369/QĐ-MTTQ → Quyết định) */
+function matchLoai(v, soVb) {
+  const L = loaiList();
+  if (v) { const n = hnorm(v); const hit = L.find(x => hnorm(x.ten) === n) || L.find(x => x.viet_tat && hnorm(x.viet_tat) === n); return hit ? hit.ten : String(v).trim(); }
+  const tk = String(soVb || '').split(/[\/\-\s.]+/).filter(Boolean);
+  if (tk.length > 1 && /^\d+$/.test(tk[0])) { const t = hnorm(tk[1]); const hit = L.find(x => x.viet_tat && hnorm(x.viet_tat) === t); if (hit) return hit.ten; }
+  return null;
+}
+function dupKeys(kind, d) {
+  const k = [];
+  if (kind === 'di') { if (d.so) k.push(`s|${d.nam}|${d.loai_vb}|${+d.so}`); }
+  else {
+    if (kind === 'den' && d.so_den) k.push(`d|${d.nam}|${+d.so_den}`);
+    if (d.so_vb) k.push(`v|${d.nam}|${hnorm(d.so_vb)}|${hnorm(d.noi_ban_hanh)}`);
+  }
+  return k;
+}
 async function importExcel(kind, file) {
   if (!window.XLSX) return toast('Chưa tải được thư viện Excel.', 'err');
   try {
     const wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
-    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: '' });
-    const hi = aoa.findIndex(r => r.some(c => norm(c) === 'trich yeu'));
-    if (hi < 0) throw new Error('Không tìm thấy dòng tiêu đề (cần có cột "Trích yếu"). Hãy dùng file Mẫu.');
-    const hdr = aoa[hi].map(norm); const defs = TPL[kind].map(([h, k, t]) => ({ k, t, i: hdr.indexOf(norm(h)) }));
-    let maxDen = {}; (S.docs.den || []).forEach(d => { maxDen[d.nam] = Math.max(maxDen[d.nam] || 0, d.so_den || 0); });
-    const rows = [];
-    for (const r of aoa.slice(hi + 1)) {
+    const sheetName = wb.SheetNames[0];
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: '' });
+    // Tìm dòng tiêu đề trong 30 dòng đầu: phải có cột Trích yếu và ít nhất 1 cột khác nhận ra được
+    let hi = -1, idx = null;
+    for (let r = 0; r < Math.min(aoa.length, 30); r++) { const m = mapHeader(kind, aoa[r]); if (m.trich_yeu !== undefined && Object.keys(m).length >= 2) { hi = r; idx = m; break; } }
+    if (hi < 0) throw new Error('Không tìm thấy dòng tiêu đề (cần có cột "Trích yếu" hoặc "Nội dung tóm tắt"). Hãy dùng file Mẫu.');
+    const defs = TPL[kind].map(([h, k, t]) => ({ h, k, t, i: idx[k] ?? -1 }));
+    const usedCols = new Set(Object.values(idx));
+    const unknown = aoa[hi].map((c, j) => ({ c: String(c).trim(), j })).filter(x => x.c && !usedCols.has(x.j) && !/^(stt|tt)$/.test(hnorm(x.c))).map(x => x.c);
+    const missing = defs.filter(d => d.i < 0).map(d => d.h.replace(/\s*\(.*\)/, ''));
+    const rows = [], noTy = [];
+    let fillNhan = 0, noNhan = 0, guessLoai = 0;
+    aoa.slice(hi + 1).forEach((r, n) => {
+      const line = hi + 2 + n; // số dòng trong Excel
+      if (!r.some(c => String(c ?? '').trim())) return; // dòng trống
       const o = { kind };
       defs.forEach(({ k, t, i }) => { if (i < 0) return; let v = r[i]; if (t === 'int') v = v === '' ? null : parseInt(v, 10) || null; else if (t === 'date') v = parseAnyDate(v); else v = String(v ?? '').trim() || null; o[k] = v; });
-      if (!o.trich_yeu) continue;
+      if (!o.trich_yeu) { noTy.push(line); return; }
+      if (kind !== 'di') {
+        const before = o.loai_vb; o.loai_vb = matchLoai(o.loai_vb, o.so_vb); if (!before && o.loai_vb) guessLoai++;
+        if (!o.ngay_nhan) { if (o.ngay_ky) { o.ngay_nhan = o.ngay_ky; fillNhan++; } else noNhan++; }
+      }
       const dt = o[KIND[kind].dateKey] || o.ngay_ky;
       if (!o.nam) o.nam = dt ? +dt.slice(0, 4) : CUR_YEAR;
       if (kind === 'di') { const L = loaiInfo(o.loai_vb); o.ky_hieu = o.ky_hieu || L.ky_hieu; o.so_vb = o.so ? `${o.so}/${o.ky_hieu}` : (o.ky_hieu || ''); o.pl = L.pl; o.dvbq = L.dvbq; if (!o.ma_dinh_danh) o.ma_dinh_danh = makeMa(o) || null; }
-      if (kind === 'den' && !o.so_den) { maxDen[o.nam] = (maxDen[o.nam] || 0) + 1; o.so_den = maxDen[o.nam]; }
       if (kind === 'mat' && !o.do_mat) o.do_mat = 'Mật';
-      rows.push(o);
+      o._line = line; rows.push(o);
+    });
+    if (!rows.length) throw new Error('File không có dòng dữ liệu hợp lệ' + (noTy.length ? ` (${noTy.length} dòng thiếu trích yếu).` : '.'));
+    // Trùng với dữ liệu đã có hoặc trùng nhau trong file
+    const seen = new Set((S.docs[kind] || []).flatMap(d => dupKeys(kind, d)));
+    const dups = [];
+    rows.forEach(o => { const ks = dupKeys(kind, o); if (ks.some(k => seen.has(k))) { o._dup = true; dups.push(o); } ks.forEach(k => seen.add(k)); });
+    const noSoDen = kind === 'den' ? rows.filter(o => !o.so_den).length : 0;
+
+    // ---- Hộp xác nhận có tóm tắt & xem trước ----
+    const show = defs.filter(d => d.i >= 0).slice(0, 7);
+    const prev = rows.slice(0, 5).map(o => `<tr><td class="no">${o._line}</td>${show.map(d => `<td>${esc(d.t === 'date' ? fmtDate(o[d.k]) : o[d.k] ?? '')}</td>`).join('')}</tr>`).join('');
+    const dupTxt = o => kind === 'den' ? `Số ID ${o.so_den ?? '?'}/${o.nam}${o.so_vb ? ' – ' + o.so_vb : ''}` : `${o.so_vb || o.so}/${o.nam}`;
+    const li = [];
+    li.push(`Đọc được <b>${rows.length}</b> dòng từ sheet "<b>${esc(sheetName)}</b>" (tiêu đề ở dòng ${hi + 1}).`);
+    if (missing.length) li.push(`<span class="err">Không thấy cột: ${esc(missing.join(', '))}</span> – các thông tin này sẽ để trống.`);
+    if (unknown.length) li.push(`Bỏ qua cột không nhận ra: ${esc(unknown.join(', '))}.`);
+    if (noTy.length) li.push(`<span class="err">Bỏ qua ${noTy.length} dòng không có trích yếu</span> (dòng ${noTy.slice(0, 10).join(', ')}${noTy.length > 10 ? '…' : ''}).`);
+    if (noSoDen) li.push(`${noSoDen} dòng chưa có Số ID → tự cấp số tiếp theo trong năm.`);
+    if (fillNhan) li.push(`${fillNhan} dòng thiếu ngày nhận → lấy theo ngày văn bản.`);
+    if (noNhan) li.push(`<span class="err">${noNhan} dòng không có cả ngày nhận lẫn ngày văn bản</span> (sẽ không lọc được theo tháng).`);
+    if (guessLoai) li.push(`${guessLoai} dòng trống loại văn bản → đoán theo ký hiệu (VD QĐ → Quyết định).`);
+    const body = `<ul style="margin:0 0 10px;padding-left:18px;font-size:13px;line-height:1.7">${li.map(x => `<li>${x}</li>`).join('')}</ul>
+      ${dups.length ? `<div class="warn"><b>${dups.length} dòng trùng</b> với văn bản đã có (hoặc trùng nhau trong file), VD: ${dups.slice(0, 5).map(o => `dòng ${o._line} (${esc(dupTxt(o))})`).join('; ')}${dups.length > 5 ? '…' : ''}.<br>Nếu file này đã nhập trước đó, hãy chọn <b>Bỏ qua dòng trùng</b>.</div>` : ''}
+      <div class="small-note" style="margin-bottom:4px">Xem trước 5 dòng đầu – kiểm tra các cột có đúng chỗ không:</div>
+      <div class="lm-wrap" style="max-height:220px"><table class="mini"><thead><tr><th>Dòng</th>${show.map(d => `<th>${esc(d.h.replace(/\s*\(.*\)/, ''))}</th>`).join('')}</tr></thead><tbody>${prev}</tbody></table></div>`;
+    const choice = await new Promise(res => {
+      const m = openModal(`📥 Nhập ${KIND[kind].label.toLowerCase()} từ "${esc(file.name)}"`, body,
+        `<button class="btn" data-c="">Hủy</button>${dups.length ? `<button class="btn btn-blue" data-c="skip">Bỏ qua dòng trùng (nhập ${rows.length - dups.length})</button><button class="btn" data-c="all">Nhập tất cả ${rows.length}</button>` : `<button class="btn btn-blue" data-c="all">Nhập ${rows.length} văn bản</button>`}`);
+      $$('[data-c]', m).forEach(b => b.onclick = () => { m.close(); res(b.dataset.c); });
+      $('.x', m).onclick = () => { m.close(); res(''); };
+    });
+    if (!choice) return;
+    const list = choice === 'skip' ? rows.filter(o => !o._dup) : rows;
+    if (!list.length) return toast('Không còn dòng nào để nhập.', 'err');
+    if (kind === 'den') { // cấp Số ID cho dòng trống, tiếp sau số lớn nhất (trong CSDL và trong file)
+      const maxDen = {};
+      [...(S.docs.den || []), ...list].forEach(d => { if (d.so_den) maxDen[d.nam] = Math.max(maxDen[d.nam] || 0, +d.so_den); });
+      list.forEach(o => { if (!o.so_den) { maxDen[o.nam] = (maxDen[o.nam] || 0) + 1; o.so_den = maxDen[o.nam]; } });
     }
-    if (!rows.length) throw new Error('File không có dòng dữ liệu hợp lệ.');
-    if (!confirm(`Nhập ${rows.length} ${KIND[kind].label.toLowerCase()} từ "${file.name}"?`)) return;
-    S.busy = true; toast(`Đang nhập ${rows.length} dòng…`);
-    for (let i = 0; i < rows.length; i += 500) await API.insertDocs(rows.slice(i, i + 500));
+    const clean = list.map(({ _line, _dup, ...o }) => o);
+    S.busy = true; let done = 0;
+    try {
+      for (let i = 0; i < clean.length; i += 500) { toast(`Đang nhập ${Math.min(i + 500, clean.length)}/${clean.length}…`, '', 2000); await API.insertDocs(clean.slice(i, i + 500)); done = Math.min(i + 500, clean.length); }
+    } catch (e) {
+      S.busy = false; await ensureDocs(kind, true).catch(() => {}); if (S.tab === kind) renderList(kind);
+      return toast(`Lỗi khi nhập: ${e.message}. Đã nhập được ${done}/${clean.length} dòng (dòng Excel ${clean.length ? list[0]._line : ''}–${done ? list[done - 1]._line : ''}).`, 'err', 12000);
+    }
     await ensureDocs(kind, true); S.busy = false;
-    toast(`Đã nhập ${rows.length} văn bản.`, 'ok'); if (S.tab === kind) renderList(kind);
+    toast(`Đã nhập ${clean.length} văn bản.`, 'ok'); if (S.tab === kind) renderList(kind);
   } catch (e) { S.busy = false; toast('Lỗi nhập Excel: ' + e.message, 'err', 8000); }
 }
 
