@@ -523,9 +523,28 @@ async function ensureDocs(kind, force) {
   if (!S.docs[kind] || force) S.docs[kind] = await API.listDocs(kind);
   return S.docs[kind];
 }
-function nextSo(kind, nam, loai) {
+/* ---- Đánh số theo nhiệm kỳ (mọi loại văn bản đi) ---- */
+const nk = () => ({ tu: prefs().nk_tu || '', den: prefs().nk_den || '', ten: prefs().nk_ten || '' });
+const docDate = d => d.ngay_ky || (d.nam ? d.nam + '-12-31' : '');
+// 0 = thuộc nhiệm kỳ hiện tại (hoặc chưa khai báo nhiệm kỳ), -1 = trước, 1 = sau
+const seg = dt => { const t = nk(); if (!t.tu || !dt) return 0; if (dt < t.tu) return -1; if (t.den && dt > t.den) return 1; return 0; };
+const nkLabel = () => { const t = nk(); return t.tu ? 'nhiệm kỳ ' + (t.ten || 'từ ' + fmtDate(t.tu)) : 'nhiệm kỳ (chưa khai báo ngày bắt đầu)'; };
+const termKey = () => nk().tu || 'all';
+const savedMax = loai => +(((prefs().so_luu || {})[termKey()] || {})[loai]) || 0; // số lớn nhất đã lưu trước khi dọn dẹp
+function soScope(ngay) {
+  const g = seg(ngay || todayISO());
+  return { cur: g === 0, label: g === 0 ? nkLabel() : g < 0 ? 'trước nhiệm kỳ hiện tại' : 'sau nhiệm kỳ hiện tại', test: d => seg(docDate(d)) === g };
+}
+/** Trước khi xóa văn bản khỏi Supabase: ghi lại số lớn nhất của từng loại để đánh số tiếp */
+async function keepMaxSo(docs) {
+  const k = termKey(); const all = { ...(prefs().so_luu || {}) }; const cur = { ...(all[k] || {}) }; let ch = false;
+  docs.forEach(d => { if (d.kind !== 'di' || !d.loai_vb || !(+d.so) || seg(docDate(d)) !== 0) return; if (+d.so > (cur[d.loai_vb] || 0)) { cur[d.loai_vb] = +d.so; ch = true; } });
+  if (!ch) return;
+  all[k] = cur; S.settings.prefs = { ...prefs(), so_luu: all }; await API.saveSettings(S.settings);
+}
+function nextSo(kind, nam, loai, ngay) {
   const list = S.docs[kind] || [];
-  if (kind === 'di') return Math.max(0, ...list.filter(d => d.nam == nam && d.loai_vb === loai).map(d => +d.so || 0)) + 1;
+  if (kind === 'di') { const sc = soScope(ngay); return Math.max(sc.cur ? savedMax(loai) : 0, ...list.filter(d => d.loai_vb === loai && sc.test(d)).map(d => +d.so || 0)) + 1; }
   if (kind === 'den') return Math.max(0, ...list.filter(d => d.nam == nam).map(d => +d.so_den || 0)) + 1;
   return '';
 }
@@ -763,14 +782,14 @@ function refreshTable(kind) {
 }
 function renderMaBox() {
   const box = $('#maBox'); if (!box) return;
-  const F = S.filters.di; const nam = F.nam || CUR_YEAR;
-  const list = (S.docs.di || []).filter(d => String(d.nam) === String(nam));
-  const latest = {}; list.forEach(d => { latest[d.loai_vb] = Math.max(latest[d.loai_vb] || 0, +d.so || 0); });
+  const F = S.filters.di;
+  const latest = { ...((prefs().so_luu || {})[termKey()] || {}) };
+  (S.docs.di || []).forEach(d => { if (d.loai_vb && seg(docDate(d)) === 0) latest[d.loai_vb] = Math.max(+latest[d.loai_vb] || 0, +d.so || 0); });
   const keys = Object.keys(latest).sort((a, b) => a.localeCompare(b, 'vi'));
   const old = $('#maInp'); const curVal = old ? old.value : maCQ();
   box.innerHTML = `<div class="r">🏛️ <b>Mã cơ quan / Phông:</b> <input id="maInp" value="${esc(curVal)}"> <button class="btn btn-blue btn-sm" id="maSave">💾 Lưu mã</button> <button class="btn btn-sm" id="maDef">Mặc định</button>
       <span class="struct">📌 <b>Cấu trúc:</b> <code>${esc(maCQ())}-[PL(2)]-[ĐVBQ(4)]-[TT(3)]-[KýHiệu]-[SốĐi(4)]-[Năm(4)]</code></span></div>
-    <div class="chips" title="Số văn bản mới nhất theo từng loại trong năm ${nam} (bấm để lọc)">${keys.length ? keys.map(k => `<span class="chip ${F.loai === k ? 'on' : ''}" data-loai="${esc(k)}">${esc(k)}: <b>${latest[k]}</b></span>`).join('') : `<span class="small-note">Năm ${nam} chưa có văn bản đi.</span>`}</div>`;
+    <div class="chips" title="Số lớn nhất của từng loại trong nhiệm kỳ, kể cả văn bản đã dọn dẹp (bấm để lọc)"><span class="small-note" style="margin:0 2px 0 0;align-self:center;font-style:normal">📅 <b>${esc(nkLabel())}</b>${nk().tu ? '' : ' <span class="err">(vào Cài đặt → Thông tin đơn vị để khai báo)</span>'}:</span>${keys.length ? keys.map(k => `<span class="chip ${F.loai === k ? 'on' : ''}" data-loai="${esc(k)}">${esc(k)}: <b>${latest[k]}</b></span>`).join('') : '<span class="small-note">Chưa có văn bản đi trong nhiệm kỳ.</span>'}</div>`;
   $('#maSave').onclick = async () => { S.settings.ma_co_quan = $('#maInp').value.trim(); try { await API.saveSettings(S.settings); toast('Đã lưu mã cơ quan', 'ok'); renderMaBox(); } catch (e) { toast(e.message, 'err'); } };
   $('#maDef').onclick = () => { $('#maInp').value = CONFIG.DEFAULT_MA_CO_QUAN; };
   $$('.chip', box).forEach(c => c.onclick = () => { F.loai = F.loai === c.dataset.loai ? '' : c.dataset.loai; $('#fLoai').value = F.loai; S.page.di = 1; refreshTable('di'); });
@@ -855,6 +874,7 @@ function openDocForm(kind, doc) {
   let body = '';
   if (kind === 'di') body = `
     <div class="g3">${inp('nam', 'Năm', 'number', 'min="2000" max="2100"')}${inp('so_vb', 'Số văn bản', 'text', 'placeholder="VD: 18/TTr-MTTQ-BTT"')}${sLoai}</div>
+    <div id="soHint" class="small-note" style="margin:-4px 0 10px;font-style:normal"></div>
     <div class="field"><div class="lblrow"><label class="lb-blue">🏷️ Mã định danh văn bản</label><span class="hint">Tự động tạo theo mã cơ quan</span></div>
       <div class="sp"><input name="ma_dinh_danh" value="${esc(d.ma_dinh_danh || '')}" class="mono-inp"><button type="button" class="plus regen" id="regen" title="Tạo lại mã định danh">⟳</button></div></div>
     <div class="field"><label>Trích yếu / Nội dung tóm tắt</label><textarea name="trich_yeu">${esc(d.trich_yeu || '')}</textarea></div>
@@ -909,12 +929,24 @@ function openDocForm(kind, doc) {
   if (kind === 'di') {
     let soAuto = isNew, maTouched = !isNew && !!d.ma_dinh_danh;
     const recompute = () => { if (maTouched) return; const p = parseSo(f.so_vb.value); f.ma_dinh_danh.value = (p.so && f.loai_vb.value) ? makeMa({ so: p.so, nam: f.nam.value, loai_vb: f.loai_vb.value }) : ''; };
-    const suggest = () => { if (!soAuto || !f.loai_vb.value) return; f.so_vb.value = `${nextSo('di', f.nam.value, f.loai_vb.value)}/${loaiInfo(f.loai_vb.value).ky_hieu}`; };
-    f.loai_vb.onchange = () => { suggest(); recompute(); };
-    f.nam.addEventListener('input', () => { suggest(); recompute(); });
+    const suggest = () => { if (!soAuto || !f.loai_vb.value) return; f.so_vb.value = `${nextSo('di', f.nam.value, f.loai_vb.value, f.ngay_ky.value)}/${loaiInfo(f.loai_vb.value).ky_hieu}`; };
+    const soHint = () => {
+      const el = $('#soHint', m); if (!el || !isNew) return;
+      const loai = f.loai_vb.value, nam = +f.nam.value;
+      if (!loai || !nam) { el.innerHTML = ''; return; }
+      const ng = f.ngay_ky.value; const sc = soScope(ng); const cur = nextSo('di', nam, loai, ng) - 1;
+      let extra = '';
+      if (!nk().tu) extra = '<br><span class="err">Chưa khai báo ngày bắt đầu nhiệm kỳ – đang đánh số liên tục trên toàn bộ dữ liệu. Vào <b>Cài đặt → Thông tin đơn vị</b> để khai báo.</span>';
+      else if (!sc.cur) extra = `<br><span class="err">Ngày ký nằm ${sc.label}, nên đánh số riêng với nhiệm kỳ hiện tại.</span>`;
+      else if (savedMax(loai) && savedMax(loai) === cur) extra = '<br><span class="muted">(Số này được giữ lại từ lần dọn dẹp dữ liệu trước.)</span>';
+      el.innerHTML = `ℹ️ <b>${esc(loai)}</b> ${esc(sc.label)}: ${cur ? `đã có đến số <b>${cur}</b>` : 'chưa có văn bản nào'} → số tiếp theo là <b>${cur + 1}</b>.` + extra;
+    };
+    f.loai_vb.onchange = () => { suggest(); recompute(); soHint(); };
+    f.nam.addEventListener('input', () => { suggest(); recompute(); soHint(); });
     f.so_vb.addEventListener('input', () => { soAuto = false; recompute(); });
     f.ma_dinh_danh.addEventListener('input', () => { maTouched = true; });
-    f.ngay_ky.onchange = () => { if (isNew && f.ngay_ky.value && f.ngay_ky.value.slice(0, 4) !== f.nam.value) { f.nam.value = f.ngay_ky.value.slice(0, 4); suggest(); recompute(); } };
+    f.ngay_ky.onchange = () => { if (isNew && f.ngay_ky.value && f.ngay_ky.value.slice(0, 4) !== f.nam.value) f.nam.value = f.ngay_ky.value.slice(0, 4); suggest(); recompute(); soHint(); };
+    soHint();
     $('#regen', m).onclick = () => { maTouched = false; recompute(); if (!f.ma_dinh_danh.value) toast('Chọn loại văn bản và nhập số văn bản (VD: 18/TTr-MTTQ-BTT) trước.', 'err'); };
   } else {
     f.ngay_nhan.onchange = () => { if (isNew && f.ngay_nhan.value) { const y = f.ngay_nhan.value.slice(0, 4); if (y !== f.nam.value) { f.nam.value = y; if (kind === 'den') f.so_den.value = nextSo('den', y); } } };
@@ -938,8 +970,9 @@ function openDocForm(kind, doc) {
     if (kind === 'den') Object.assign(p, { so_den: +f.so_den.value, ngay_nhan: val('ngay_nhan'), nguoi_nhan: val('nguoi_nhan') });
     if (kind === 'mat') Object.assign(p, { do_mat: val('do_mat'), ngay_nhan: val('ngay_nhan'), nguoi_nhan: val('nguoi_nhan') });
     const pending = rowsEl ? $$('input[type=file]', rowsEl).flatMap(i => [...i.files]) : [];
-    const dup = (S.docs[kind] || []).find(x => x.id !== (doc && doc.id) && x.nam === p.nam && (kind === 'di' ? (x.loai_vb === p.loai_vb && +x.so === p.so) : kind === 'den' ? +x.so_den === p.so_den : x.so_vb === p.so_vb));
-    if (dup && !confirm(`Đã có văn bản trùng số (${kind === 'den' ? 'Số ID ' + dup.so_den : dup.so_vb}) trong năm ${p.nam}. Vẫn lưu?`)) return;
+    const sc = kind === 'di' ? soScope(p.ngay_ky) : null;
+    const dup = (S.docs[kind] || []).find(x => x.id !== (doc && doc.id) && (kind === 'di' ? (sc.test(x) && x.loai_vb === p.loai_vb && +x.so === p.so) : x.nam === p.nam && (kind === 'den' ? +x.so_den === p.so_den : x.so_vb === p.so_vb)));
+    if (dup && !confirm(`Đã có văn bản trùng số (${kind === 'den' ? 'Số ID ' + dup.so_den : dup.so_vb}) trong ${sc ? sc.label : 'năm ' + p.nam}. Vẫn lưu?`)) return;
     const btn = $('#mSave', m); btn.disabled = true; btn.textContent = 'Đang lưu…'; m._lock = true; S.busy = true; const msg = $('#upMsg', m);
     const errs = [];
     try {
@@ -1253,7 +1286,7 @@ async function openFreeSpace() {
     const { docs, items } = sel(); const live = items.filter(onDrive); const old = items.length - live.length;
     $('#frInfo', m).innerHTML = `Có <b>${live.length}</b> tệp (${fmtSize(live.reduce((a, it) => a + (+it.f.size || 0), 0))}) trên Drive`
       + (old ? ` và <b>${old}</b> bản ghi tệp cũ trong Supabase` : '') + ' sẽ bị xóa.'
-      + (delDocs() ? `<br>Sẽ xóa <b>${docs.length}</b> văn bản khỏi sổ đăng ký (Supabase).` : '<br>Thông tin sổ đăng ký (số, trích yếu, ngày…) được giữ lại.');
+      + (delDocs() ? `<br>Sẽ xóa <b>${docs.length}</b> văn bản khỏi sổ đăng ký (Supabase). Số lớn nhất của từng loại văn bản đi được giữ lại để đánh số tiếp.` : '<br>Thông tin sổ đăng ký (số, trích yếu, ngày…) được giữ lại.');
   };
   $('#frKind', m).onchange = info; $('#frYear', m).onchange = info; $('#frDoc', m).onchange = info; info();
   $('#frClose', m).onclick = () => m.close();
@@ -1263,6 +1296,8 @@ async function openFreeSpace() {
     const { docs, items } = sel(); const wantDocs = delDocs();
     if (!items.length && !(wantDocs && docs.length)) return toast('Không có gì để xóa.', 'err');
     if (!$('#frChk', m).checked || $('#frTxt', m).value.trim().toUpperCase() !== 'XOA') return toast('Hãy tích xác nhận và gõ XOA.', 'err');
+    // Ghi lại số lớn nhất của từng loại VB đi TRƯỚC khi xóa, để sau này đánh số tiếp (lỗi thì dừng, không xóa)
+    if (wantDocs) { try { await keepMaxSo(docs); } catch (e) { return toast('Không lưu được số văn bản lớn nhất nên đã dừng (chưa xóa gì): ' + e.message, 'err', 9000); } }
     $('#frGo', m).disabled = true; m._lock = true; S.busy = true; $('#frProg', m).classList.remove('hidden');
     const bar = $('#frBar', m), msg = $('#frMsg', m); let trashOnly = false;
     // 1) Xóa tệp: Drive trước, rồi bản ghi document_files trong Supabase
@@ -1314,7 +1349,7 @@ const SET_TABS = [
   ['loai', '📚', 'Loại văn bản & mã định danh', 'Viết tắt, ký hiệu, PL, ĐVBQ']
 ];
 function renderSettings() {
-  const st = S.settings; const lm = loaiList().map(x => ({ ...x }));
+  const st = S.settings; const lm = loaiList().map(x => ({ ...x, _so: savedMax(x.ten) || '' }));
   if (!SET_TABS.some(t => t[0] === S.setTab)) S.setTab = 'drive';
   const driveOk = Drive.ready() && !DEMO;
   const initials = String(S.user.name || S.user.email || '?').trim().split(/\s+/).slice(-1)[0].charAt(0).toUpperCase();
@@ -1343,6 +1378,11 @@ function renderSettings() {
          <div class="ma-prev">📌 Cấu trúc: <code id="maPrev"></code></div></div>
        <div class="g2"><div class="field"><label>Nơi ban hành mặc định (VB đi)</label><select id="sNoi">${selOpts('noi_ban_hanh', prefs().noi_ban_hanh_di)}</select></div>
          <div class="field"><label>Người ký mặc định (VB đi)</label><select id="sKy">${selOpts('nguoi_ky', prefs().nguoi_ky_mac_dinh)}</select></div></div>
+       <div class="sx-gap"></div><div class="sx-sec">Nhiệm kỳ (số văn bản đi đánh liên tục theo nhiệm kỳ)</div>
+       <div class="g3"><div class="field"><label>Tên nhiệm kỳ</label><input id="sNkTen" placeholder="VD: 2025–2030" value="${esc(prefs().nk_ten || '')}"></div>
+         <div class="field"><label>Bắt đầu từ ngày</label><input type="date" id="sNkTu" value="${esc(prefs().nk_tu || '')}"></div>
+         <div class="field"><label>Đến ngày (để trống nếu chưa hết)</label><input type="date" id="sNkDen" value="${esc(prefs().nk_den || '')}"></div></div>
+       <div class="small-note">Mọi loại văn bản đi được đánh số liên tục từ ngày bắt đầu nhiệm kỳ, sang năm mới không quay về 01. Khi sang nhiệm kỳ mới, đổi ngày bắt đầu → số lại bắt đầu từ 01.</div>
        <div class="sx-gap"></div><div class="sx-sec">Tài khoản</div>
        <div class="acc"><div class="av">${esc(initials)}</div><div class="who"><b>${esc(S.user.name)}</b><span>${esc(S.user.email)}</span></div><button class="btn" id="sPw">🔑 Đổi mật khẩu</button></div>
        <div class="small-note" style="margin-top:8px">Dữ liệu, cài đặt và tệp của tài khoản này được lưu riêng, tài khoản khác không xem được.</div>`,
@@ -1350,8 +1390,8 @@ function renderSettings() {
     ${panel('dm', '👥 Danh mục người ký · người nhận · nơi ban hành', 'Các mục ở đây hiện trong ô "-- Chọn --" khi thêm văn bản. Cũng có thể thêm nhanh bằng nút <b>+</b> ngay trong form nhập văn bản. Thay đổi được lưu ngay.',
       `<div class="dm-grid">${['nguoi_ky', 'nguoi_nhan', 'noi_ban_hanh'].map(t => `<div class="dm-col"><div class="dmh"><span>${{ nguoi_ky: '✍️ Người ký', nguoi_nhan: '📨 Người nhận', noi_ban_hanh: '🏛️ Nơi ban hành' }[t]}</span><span class="cnt" data-dmc="${t}">0</span></div>
         <div class="sp"><input data-dmin="${t}" placeholder="Thêm ${DM_LABEL[t]}…"><button class="plus" data-dmadd="${t}" title="Thêm">+</button></div><div class="dmlist" data-dml="${t}"></div></div>`).join('')}</div>`, '')}
-    ${panel('loai', '📚 Danh mục loại văn bản & mã định danh', '<b>Viết tắt</b> dùng trong mã định danh; <b>Ký hiệu mặc định</b> dùng cho số văn bản đi (VD: TTr-MTTQ-BTT → "18/TTr-MTTQ-BTT").',
-      `<div class="lm-wrap"><table class="mini"><thead><tr><th>#</th><th>Tên loại</th><th>Viết tắt</th><th>Ký hiệu mặc định</th><th>PL (2)</th><th>ĐVBQ (4)</th><th></th></tr></thead><tbody id="lmBody"></tbody></table></div>`,
+    ${panel('loai', '📚 Danh mục loại văn bản & mã định danh', '<b>Viết tắt</b> dùng trong mã định danh; <b>Ký hiệu mặc định</b> dùng cho số văn bản đi; <b>Số cuối đã lưu</b>: số lớn nhất giữ lại sau khi dọn dẹp, để đánh số tiếp (VD: TTr-MTTQ-BTT → "18/TTr-MTTQ-BTT").',
+      `<div class="lm-wrap"><table class="mini"><thead><tr><th>#</th><th>Tên loại</th><th>Viết tắt</th><th>Ký hiệu mặc định</th><th>PL (2)</th><th>ĐVBQ (4)</th><th title="Số lớn nhất đã giữ lại khi dọn dẹp dữ liệu (nhiệm kỳ hiện tại). Có thể sửa tay nếu cần.">Số cuối đã lưu</th><th></th></tr></thead><tbody id="lmBody"></tbody></table></div>`,
       `<div class="left"><button class="btn" id="lmAdd">+ Thêm loại</button><button class="btn" id="lmReset">↺ Khôi phục mặc định</button></div><button class="btn btn-blue" id="lmSave">💾 Lưu danh mục</button>`,
       `<span class="stag on" id="lmCount"></span>`)}
     </div></div>`;
@@ -1381,22 +1421,24 @@ function renderSettings() {
 
   // ---- Danh mục loại văn bản ----
   const draw = () => {
-    $('#lmBody').innerHTML = lm.map((x, i) => `<tr><td class="no">${i + 1}</td><td><input data-i="${i}" data-k="ten" value="${esc(x.ten)}" placeholder="Tên loại"></td><td><input data-i="${i}" data-k="viet_tat" value="${esc(x.viet_tat)}" style="min-width:70px"></td><td><input data-i="${i}" data-k="ky_hieu" value="${esc(x.ky_hieu)}" class="mono-inp" style="min-width:150px"></td><td><input data-i="${i}" data-k="pl" value="${esc(x.pl)}" maxlength="2" style="width:60px" class="mono-inp"></td><td><input data-i="${i}" data-k="dvbq" value="${esc(x.dvbq)}" maxlength="4" style="width:80px" class="mono-inp"></td><td><button class="btn btn-sm btn-exit" data-del="${i}" title="Xóa loại này">✕</button></td></tr>`).join('');
+    $('#lmBody').innerHTML = lm.map((x, i) => `<tr><td class="no">${i + 1}</td><td><input data-i="${i}" data-k="ten" value="${esc(x.ten)}" placeholder="Tên loại"></td><td><input data-i="${i}" data-k="viet_tat" value="${esc(x.viet_tat)}" style="min-width:70px"></td><td><input data-i="${i}" data-k="ky_hieu" value="${esc(x.ky_hieu)}" class="mono-inp" style="min-width:150px"></td><td><input data-i="${i}" data-k="pl" value="${esc(x.pl)}" maxlength="2" style="width:60px" class="mono-inp"></td><td><input data-i="${i}" data-k="dvbq" value="${esc(x.dvbq)}" maxlength="4" style="width:80px" class="mono-inp"></td><td><input type="number" min="0" data-i="${i}" data-k="_so" value="${x._so || ''}" style="width:80px" class="mono-inp" placeholder="0"></td><td><button class="btn btn-sm btn-exit" data-del="${i}" title="Xóa loại này">✕</button></td></tr>`).join('');
     $('#lmCount').textContent = `${lm.length} loại văn bản`;
   };
   draw();
-  $('#lmBody').oninput = e => { const t = e.target; if (t.dataset.k) lm[+t.dataset.i][t.dataset.k] = t.value.trim(); };
+  $('#lmBody').oninput = $('#lmBody').onchange = e => { const t = e.target; if (t.dataset.k) lm[+t.dataset.i][t.dataset.k] = t.value.trim(); };
   $('#lmBody').onclick = e => { const b = e.target.closest('[data-del]'); if (b) { lm.splice(+b.dataset.del, 1); draw(); } };
-  $('#lmAdd').onclick = () => { lm.push({ ten: '', viet_tat: '', ky_hieu: 'MTTQ-BTT', pl: '01', dvbq: '0001' }); draw(); const ins = $$('#lmBody input[data-k=ten]'); ins[ins.length - 1].focus(); };
-  $('#lmReset').onclick = () => { if (confirm('Khôi phục danh mục mặc định?')) { lm.splice(0, lm.length, ...DEFAULT_LOAI.map(x => ({ ...x }))); draw(); } };
+  $('#lmAdd').onclick = () => { lm.push({ ten: '', viet_tat: '', ky_hieu: 'MTTQ-BTT', pl: '01', dvbq: '0001', _so: '' }); draw(); const ins = $$('#lmBody input[data-k=ten]'); ins[ins.length - 1].focus(); };
+  $('#lmReset').onclick = () => { if (confirm('Khôi phục danh mục mặc định?')) { lm.splice(0, lm.length, ...DEFAULT_LOAI.map(x => ({ ...x, _so: savedMax(x.ten) || '' }))); draw(); } };
   const save = async (patch, okMsg) => { Object.assign(S.settings, patch); try { await API.saveSettings(S.settings); toast(okMsg, 'ok'); } catch (e) { toast('Lỗi lưu: ' + e.message, 'err'); } };
-  $('#lmSave').onclick = () => { const clean = lm.filter(x => x.ten); clean.forEach(x => { x.pl = pad(x.pl || '1', 2); x.dvbq = pad(x.dvbq || '1', 4); }); save({ loai_map: clean }, 'Đã lưu danh mục loại văn bản'); };
+  $('#lmSave').onclick = () => { const clean = lm.filter(x => x.ten); clean.forEach(x => { x.pl = pad(x.pl || '1', 2); x.dvbq = pad(x.dvbq || '1', 4); });
+    const so = { ...((prefs().so_luu || {})[termKey()] || {}) }; clean.forEach(x => { if (+x._so > 0) so[x.ten] = +x._so; else delete so[x.ten]; });
+    save({ loai_map: clean.map(({ _so, theo_nk, ...x }) => x), prefs: { ...prefs(), so_luu: { ...(prefs().so_luu || {}), [termKey()]: so } } }, 'Đã lưu danh mục loại văn bản'); };
 
   // ---- Thông tin đơn vị ----
   const prevMa = () => { $('#maPrev').textContent = `${$('#sMa').value.trim() || '…'}-[PL(2)]-[ĐVBQ(4)]-[TT(3)]-[KýHiệu]-[SốĐi(4)]-[Năm(4)]`; };
   prevMa(); $('#sMa').oninput = prevMa;
   $('#sMaDef').onclick = () => { $('#sMa').value = CONFIG.DEFAULT_MA_CO_QUAN; prevMa(); };
-  $('#sSaveOrg').onclick = () => save({ ma_co_quan: $('#sMa').value.trim(), prefs: { ...prefs(), noi_ban_hanh_di: $('#sNoi').value.trim(), nguoi_ky_mac_dinh: $('#sKy').value.trim() } }, 'Đã lưu thông tin đơn vị');
+  $('#sSaveOrg').onclick = () => save({ ma_co_quan: $('#sMa').value.trim(), prefs: { ...prefs(), noi_ban_hanh_di: $('#sNoi').value.trim(), nguoi_ky_mac_dinh: $('#sKy').value.trim(), nk_ten: $('#sNkTen').value.trim(), nk_tu: $('#sNkTu').value, nk_den: $('#sNkDen').value, so_luu: (() => { const a = { ...(prefs().so_luu || {}) }; const k = $('#sNkTu').value || 'all'; if (!a[k] && a.all && k !== 'all') a[k] = a.all; return a; })() } }, 'Đã lưu thông tin đơn vị');
   $('#sPw').onclick = () => openChangePw(false);
 
   // ---- Google Drive ----
